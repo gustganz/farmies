@@ -9,4 +9,4 @@ if (!file || !hookCmd) {
   process.exit(1);
 }
 const added = addHooks(file, hookCmd);
-console.log(added ? `Added ${added} hook(s) to ${file}` : `Hooks already present in ${file}`);
+console.log(added ? `Added or updated ${added} hook(s) in ${file}` : `Hooks already up to date in ${file}`);

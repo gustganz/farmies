@@ -36,6 +36,15 @@ function windowsScript(pid, oldExe, newExe, downloaded) {
     .join('\n');
 }
 
+/**
+ * How to start the script so it outlives the app: a detached PowerShell has no console and exits
+ * without running anything, so `cmd start` opens it with its own (hidden) console.
+ */
+function windowsLaunch(script) {
+  const encoded = Buffer.from(script, 'utf16le').toString('base64');
+  return ['cmd.exe', ['/d', '/c', 'start', '""', '/min', 'powershell.exe', '-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', encoded]];
+}
+
 /** sh: wait until the app has quit, swap the bundles (old one back on failure), start it. */
 const MAC_SCRIPT = `
 while kill -0 "$1" 2>/dev/null; do sleep 0.2; done
@@ -140,11 +149,8 @@ class Updater extends EventEmitter {
     const downloaded = newExe === oldExe ? `${newExe}.new` : newExe;
     await this.download(u.asset, downloaded);
     const script = windowsScript(process.pid, oldExe, newExe, downloaded);
-    spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-WindowStyle', 'Hidden', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], {
-      detached: true,
-      stdio: 'ignore',
-      windowsHide: true,
-    }).unref();
+    const [cmd, args] = windowsLaunch(script);
+    spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
   }
 
   async installMac(u) {
@@ -168,4 +174,4 @@ class Updater extends EventEmitter {
   }
 }
 
-module.exports = { Updater, windowsScript, MAC_SCRIPT };
+module.exports = { Updater, windowsScript, windowsLaunch, MAC_SCRIPT };
