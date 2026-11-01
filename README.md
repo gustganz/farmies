@@ -76,6 +76,15 @@ Hooks ohne App einrichten (optional): `sh scripts/install-hook.sh` (in WSL bzw. 
 
 Tests (plain node, ohne Windows/Mac/Display): `npm test`
 
+Automatisch auf GitHub (`.github/workflows/ci.yml`, bei jedem Push): die Tests und ein Starttest der
+gebauten App auf echten macOS- und Windows-Rechnern (`scripts/smoke.js`): startet sie, prüft, dass sie
+läuft, das Tier zeichnet, keine Fehler loggt und (macOS) die Hooks einrichtet. Ein Bildschirmfoto
+hängt am Lauf. Vor jedem Release läuft derselbe Starttest.
+
+Noch nicht von Hand getestet: macOS (außer dem Starttest: Klick-Fokussieren, Autostart, Update) und
+das Claude-Plugin in Cursor/VS Code (die Blasen sollten kommen, ein Klick holt aber nur das Fenster,
+nicht das Claude-Panel).
+
 Release (baut Windows und macOS auf GitHub Actions, `.github/workflows/release.yml`):
 
 1. `version` in `package.json` erhöhen, committen

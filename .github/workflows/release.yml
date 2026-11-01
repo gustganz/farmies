@@ -1,5 +1,6 @@
-# Pushing a tag vX.Y.Z (same as "version" in package.json) builds Windows and macOS and publishes
-# a GitHub release with the files the in-app updater looks for (src/releases.js).
+# Pushing a tag vX.Y.Z (same as "version" in package.json) builds Windows and macOS, start-tests
+# the builds (scripts/smoke.js) and publishes a GitHub release with the files the in-app
+# updater looks for (src/releases.js).
 name: Release
 
 on:
@@ -23,8 +24,8 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -33,6 +34,14 @@ jobs:
       - run: npm ci
       - run: npm test
       - run: npm run ${{ matrix.dist }} -- --publish never
+      - name: Start test (the unpacked app of this build)
+        run: node scripts/smoke.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snapshot-${{ matrix.os }}
+          path: dist/smoke-*.png
+          if-no-files-found: ignore
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
