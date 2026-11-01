@@ -344,7 +344,7 @@ body {
 /* working: the colours turn around the frame (stepped like pixels). They avoid red/blue/green,
    which mean "needs you". */
 .tag-working,
-.m-state-working {
+.m-state.m-state-working {
   background: conic-gradient(from var(--a), #9b59b6 0 25%, #16a8a0 0 50%, #e67e22 0 75%, #e84393 0);
   animation: turn 2s steps(16) infinite;
 }
@@ -393,12 +393,11 @@ body {
   overflow: hidden;
 }
 
-.m-name {
-  flex: none;
-  max-width: 150px;
-  font-size: 14px;
+.m-where {
+  min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--m-text);
 }
 
 .m-state {
