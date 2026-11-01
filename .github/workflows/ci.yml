@@ -1,10 +1,10 @@
-# On every push and pull request: unit tests, and a start test of the packaged app on a real
-# macOS and Windows machine (scripts/smoke.js). The snapshots are attached to the run.
+# On every push (any branch) and pull request: unit tests, and a start test of the packaged app on
+# a real macOS and Windows machine (scripts/smoke.js). The snapshots are attached to the run.
 name: CI
 
 on:
   push:
-    branches: [main]
+    branches: ['**']
   pull_request:
 
 jobs:
