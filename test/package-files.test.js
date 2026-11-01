@@ -23,3 +23,8 @@ test('files the app loads are packaged', () => {
   }
   assert.deepStrictEqual(missing, []);
 });
+
+test('shell scripts keep LF line ends in every checkout', () => {
+  const attrs = fs.readFileSync(path.join(ROOT, '.gitattributes'), 'utf8');
+  assert.match(attrs, /^\*\.sh text eol=lf$/m);
+});

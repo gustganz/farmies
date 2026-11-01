@@ -120,7 +120,8 @@ async function ensureHooks() {
     const home = hostPath(target, target.home);
     const hookDir = path.join(home, '.farmies');
     fs.mkdirSync(hookDir, { recursive: true });
-    writeIfChanged(path.join(hookDir, 'hook.sh'), fs.readFileSync(HOOK_SOURCE, 'utf8'));
+    // a Windows checkout may have turned the line ends into CRLF, which sh cannot run
+    writeIfChanged(path.join(hookDir, 'hook.sh'), fs.readFileSync(HOOK_SOURCE, 'utf8').replace(/\r\n/g, '\n'));
 
     const sessions = path.join(BASE, 'sessions');
     fs.mkdirSync(sessions, { recursive: true });

@@ -1,0 +1,2 @@
+# shell scripts run in WSL/macOS: keep LF line ends, also in Windows checkouts and builds
+*.sh text eol=lf
