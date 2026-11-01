@@ -30,6 +30,7 @@
   --red: #c72626;
   --green: #3f8f2f;
   --blue: #2f6fd0;
+  --orange: #d9730d; /* new version, see Bubbles.UPDATE */
   --gray: #9e9c86;
   /* outline with notched corners */
   --pixel-border:
@@ -79,22 +80,10 @@ body {
   animation: bob 0.8s steps(1) infinite;
 }
 
-/* stepped tail pointing to the hen's head (pixels built in renderer.js) */
+/* stepped tail pointing to the hen's head (pixels built in renderer.js, x from Bubbles.tailX) */
 .bubble .tail {
   position: absolute;
   top: 100%;
-}
-
-.bubble .tail-down {
-  left: 8px;
-}
-
-.bubble .tail-left {
-  left: 2px;
-}
-
-.bubble .tail-right {
-  right: 2px;
 }
 
 /* "done" just waits for the next prompt: no bobbing */
@@ -204,6 +193,11 @@ body {
   cursor: pointer;
 }
 
+.update-row {
+  border-bottom: 2px solid var(--paper-dark);
+  margin-bottom: 4px;
+}
+
 .row:hover {
   background: var(--paper-dark);
 }
@@ -228,6 +222,10 @@ body {
 
 .dot.done {
   background: var(--green);
+}
+
+.dot.update {
+  background: var(--orange);
 }
 
 /* working: the square keeps changing colour, so you see something is going on. The colours

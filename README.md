@@ -23,6 +23,11 @@ Bescheid geben, wenn eine Claude-Code-Session dich braucht. Standard ist das Huh
   - macOS: Terminal.app und iTerm über das TTY, sonst die App der Session
 - **Tray-Icon** (Bauernhaus): Tier, Größe, alle als gesehen markieren, ausblenden, „Beim Login starten“,
   über Farmies, deinstallieren, beenden.
+- **Updates**: die App schaut beim Start und alle 6 Stunden nach einem neuen
+  [GitHub-Release](https://github.com/gustganz/farmies/releases). Gibt es eins, zeigt das Tier eine orange
+  **NEW**-Blase (immer, zusätzlich zu den Session-Blasen) und das Panel einen Eintrag. Klick darauf lädt das
+  Update (Fortschritt in der Blase), tauscht die App aus und startet sie neu. Einstellungen, Position des Tiers
+  und als gesehen markierte Sessions bleiben erhalten.
 - **Autostart**: ab dem ersten Start aktiv. Windows: Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (Eintrag `com.gustganz.farmies`), macOS: `~/Library/LaunchAgents/com.gustganz.farmies.plist`. Abschalten über das Tray-Menü.
 
@@ -46,15 +51,15 @@ Tooltip des Tray-Icons.
 
 - **Windows**: `Farmies-<version>-portable.exe` irgendwo hinlegen und starten. Sie entpackt sich bei
   jedem Start selbst (dauert ein paar Sekunden); der Autostart zeigt auf die `.exe`.
-- **macOS (signiert, auf einem Mac gebaut)**: `.dmg` öffnen, „Farmies“ nach *Programme* ziehen,
-  beim ersten Start Rechtsklick → *Öffnen* (ad-hoc-signiert, nicht notarisiert).
-- **macOS (unsigniertes ZIP, unter Windows/WSL gebaut)**: `…-mac-arm64-unsigned.zip` (Apple Silicon) bzw.
-  `…-mac-x64-unsigned.zip` (Intel) entpacken, App nach *Programme* ziehen und einmal im Terminal freischalten:
+- **macOS**: `Farmies-<version>-mac-arm64.zip` (Apple Silicon) bzw. `…-mac-x64.zip` (Intel) entpacken,
+  App nach *Programme* ziehen und einmal im Terminal freischalten (nicht notarisiert):
 
   ```sh
   xattr -cr "/Applications/Farmies.app"
   codesign --force --deep -s - "/Applications/Farmies.app"
   ```
+
+  Spätere Updates über die App brauchen das nicht mehr.
 
 ## Entwicklung
 
@@ -69,11 +74,22 @@ App starten:
 
 Hooks ohne App einrichten (optional): `sh scripts/install-hook.sh` (in WSL bzw. auf dem Mac).
 
-Pakete bauen (`dist/`):
+Tests (plain node, ohne Windows/Mac/Display): `npm test`
+
+Release (baut Windows und macOS auf GitHub Actions, `.github/workflows/release.yml`):
+
+1. `version` in `package.json` erhöhen, committen
+2. Tag setzen und pushen: `git tag v0.2.0 && git push origin main v0.2.0`
+
+Der Workflow prüft, dass Tag und Version passen, lässt die Tests laufen und hängt
+`Farmies-<version>-portable.exe` und `Farmies-<version>-mac-{arm64,x64}.zip` ans Release. Die laufenden
+Apps finden es von selbst (`src/updater.js`).
+
+Pakete lokal bauen (`dist/`):
 
 - **Windows**: auf Windows `npm install && npm run dist:win` → portable `.exe`
-- **macOS**: auf einem Mac `npm install && npm run dist:mac` → universelles `.dmg` + `.zip` (ad-hoc-signiert)
-- **macOS unsigniert** (unter Linux/WSL): `npm run dist:mac-unsigned` → ZIPs für arm64 und x64;
+- **macOS**: auf einem Mac `npm install && npm run dist:mac` → ZIPs für arm64 und x64 (ad-hoc-signiert)
+- **macOS unsigniert** (unter Linux/WSL): `npm run dist:mac-unsigned` → dieselben ZIPs, unsigniert;
   braucht `build/icon.icns` (`npm run icon`) und `zip`
 
 Debug: mit `FARMIES_DEBUG=1` schreibt die App Fensterbewegungen und den Hook-Status nach

@@ -8,6 +8,7 @@
   "main": "src/main.js",
   "scripts": {
     "start": "electron .",
+    "test": "node --test",
     "icon": "node scripts/make-icon.js",
     "dist:win": "npm run ext && npm run icon && electron-builder --win portable",
     "dist:mac": "npm run ext && npm run icon && electron-builder --mac",
@@ -52,15 +53,10 @@
     "mac": {
       "target": [
         {
-          "target": "dmg",
-          "arch": [
-            "universal"
-          ]
-        },
-        {
           "target": "zip",
           "arch": [
-            "universal"
+            "arm64",
+            "x64"
           ]
         }
       ],
@@ -70,7 +66,7 @@
       "extendInfo": {
         "LSUIElement": true
       },
-      "artifactName": "Farmies-${version}-mac.${ext}"
+      "artifactName": "Farmies-${version}-mac-${arch}.${ext}"
     }
   }
 }

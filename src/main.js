@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, net, screen } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { Sessions, NEEDS_USER_STATES } = require('./sessions');
@@ -9,6 +9,7 @@ const autostart = require('./autostart');
 const { uninstall } = require('./uninstall');
 const { ensureHooks } = require('./hooks');
 const { WtTabs } = require('./wt-tabs');
+const { Updater } = require('./updater');
 
 // The hen lives in a small transparent window that the renderer moves around (also across
 // displays); it is big enough for the bubble and the hover panel above the hen.
@@ -24,6 +25,7 @@ let sheets = null; // animal id → PNG bytes
 let hookStatus = null; // result of ensureHooks() at start
 const sessions = new Sessions();
 const wtTabs = new WtTabs();
+const updater = new Updater({ app, net, quit: () => app.quit() });
 const settings = {};
 
 const settingsFile = () => path.join(app.getPath('userData'), 'settings.json');
@@ -53,7 +55,13 @@ function debugLog(...args) {
 function sendDisplays() {
   const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea }));
   debugLog('displays', JSON.stringify(displays));
-  win?.webContents.send('displays', { displays, primary: screen.getPrimaryDisplay().id, win: [WIN_W, WIN_H] });
+  // position: where the animal was before the last quit (update, restart), used once at start
+  win?.webContents.send('displays', {
+    displays,
+    primary: screen.getPrimaryDisplay().id,
+    win: [WIN_W, WIN_H],
+    position: settings.position,
+  });
 }
 
 function moveWindow(x, y) {
@@ -137,8 +145,19 @@ function updateTray() {
   const pending = sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state)).length;
   const hookInfo = hookStatus && !hookStatus.ok ? ` · Hooks: ${hookStatus.reason}` : '';
   tray.setToolTip((pending ? `Farmies – ${pending} wartet auf dich` : 'Farmies') + hookInfo);
+  const update = updater.update;
   tray.setContextMenu(
     Menu.buildFromTemplate([
+      {
+        label:
+          update?.status === 'downloading'
+            ? `Update auf ${update.version} wird geladen … ${update.progress} %`
+            : `Update auf ${update?.version} installieren`,
+        visible: !!update,
+        enabled: update?.status !== 'downloading',
+        click: () => updater.install(),
+      },
+      { type: 'separator', visible: !!update },
       {
         label: 'Tier',
         submenu: Object.entries(Animals.ANIMALS).map(([id, a]) => ({
@@ -283,6 +302,12 @@ acquireLock().then((locked) => {
     sessions.start();
     wtTabs.start(); // Windows Terminal: which tab belongs to which session
 
+    updater.on('change', (u) => {
+      win?.webContents.send('update', u);
+      updateTray();
+    });
+    updater.start();
+
     // set up / repair the Claude Code hooks on every start
     ensureHooks().then((status) => {
       hookStatus = status;
@@ -295,6 +320,7 @@ acquireLock().then((locked) => {
       const bytes = Object.fromEntries(Object.entries(sheets).map(([id, b]) => [id, new Uint8Array(b)]));
       win.webContents.send('sprites', { sheets: bytes, animal: currentAnimal(), scale: currentScale() });
       win.webContents.send('sessions', sessions.list);
+      win.webContents.send('update', updater.update);
       if (process.env.FARMIES_DEBUG) {
         // snapshot of the rendered page (with the hover panel open) for checking the look
         setTimeout(() => win.webContents.send('debug-panel'), 3000);
@@ -313,6 +339,11 @@ acquireLock().then((locked) => {
       focusSession(s, wtTabs.tabFor(s.id));
     });
     ipcMain.on('dismiss-all', () => sessions.dismissAll());
+    ipcMain.on('install-update', () => updater.install());
+    ipcMain.on('position', (_e, position) => {
+      settings.position = position;
+      saveSettings();
+    });
 
     screen.on('display-metrics-changed', sendDisplays);
     screen.on('display-added', sendDisplays);

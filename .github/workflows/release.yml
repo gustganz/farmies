@@ -1,0 +1,44 @@
+# Pushing a tag vX.Y.Z (same as "version" in package.json) builds Windows and macOS and publishes
+# a GitHub release with the files the in-app updater looks for (src/releases.js).
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            dist: dist:win
+          - os: macos-latest
+            dist: dist:mac
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Tag matches package.json
+        run: test "v$(node -p "require('./package.json').version")" = "$GITHUB_REF_NAME"
+      - run: npm ci
+      - run: npm test
+      - run: npm run ${{ matrix.dist }} -- --publish never
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          shopt -s nullglob
+          files=(dist/Farmies-*-portable.exe dist/Farmies-*-mac-*.zip)
+          # both jobs try to create the release, the second one finds it
+          gh release create "$GITHUB_REF_NAME" --title "Farmies ${GITHUB_REF_NAME#v}" --generate-notes || true
+          gh release upload "$GITHUB_REF_NAME" "${files[@]}" --clobber
