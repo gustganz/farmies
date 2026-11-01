@@ -9,8 +9,10 @@ const png = require('./png');
 const Animals = require('../src/animals');
 const Bubbles = require('../src/bubbles');
 
-const count = Number(process.argv[2] || 1);
-const out = process.argv[3] || `bubbles-preview-${count}.png`;
+// count with a trailing "u" (e.g. 2u): plus the update bubble
+const count = parseInt(process.argv[2] || '1', 10);
+const withUpdate = /u$/.test(process.argv[2] || '');
+const out = process.argv[3] || `bubbles-preview-${process.argv[2] || 1}.png`;
 const SCALE = 2.5; // app default
 const CELL_W = 260;
 const CELL_H = 240;
@@ -18,7 +20,7 @@ const STATES = ['error', 'attention', 'question', 'done', 'done', 'attention', '
 
 const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)).concat(255);
 const sessions = Array.from({ length: count }, (_, i) => ({ id: `s${i}`, state: STATES[i % STATES.length] }));
-const plan = Bubbles.plan(sessions);
+const plan = Bubbles.plan(sessions, withUpdate ? { status: 'available' } : null);
 
 const animals = Object.keys(Animals.ANIMALS).map((id) =>
   Animals.build(id, png.decode(fs.readFileSync(path.join(__dirname, '..', 'assets', 'lpc', Animals.ANIMALS[id].sheet)))),
@@ -62,22 +64,22 @@ animals.forEach((a, r) => {
     }
     // bubbles, as the app places them (positions relative to the window bottom = ground line)
     const hx = lx - cx + head.x * k + k / 2;
-    const positions = Bubbles.place(plan.length, hx, (frame.h - head.top) * k);
+    const positions = Bubbles.place(plan.length, hx, (frame.h - head.top) * k, plan.map((b) => b.width));
     // draw back to front: the middle bubble lies on top
     [...plan.keys()].reverse().forEach((i) => {
       const b = plan[i];
       const bx = cx + positions[i].left;
       const by = ground - positions[i].bottom - Bubbles.HEIGHT;
       const ink = hex(Bubbles.INK);
-      rect(bx, by - 2, Bubbles.WIDTH, 2, ink);
-      rect(bx, by + Bubbles.HEIGHT, Bubbles.WIDTH, 2, ink);
+      rect(bx, by - 2, b.width, 2, ink);
+      rect(bx, by + Bubbles.HEIGHT, b.width, 2, ink);
       rect(bx - 2, by, 2, Bubbles.HEIGHT, ink);
-      rect(bx + Bubbles.WIDTH, by, 2, Bubbles.HEIGHT, ink);
-      rect(bx, by, Bubbles.WIDTH, Bubbles.HEIGHT, hex(Bubbles.PAPER));
+      rect(bx + b.width, by, 2, Bubbles.HEIGHT, ink);
+      rect(bx, by, b.width, Bubbles.HEIGHT, hex(Bubbles.PAPER));
       const gw = b.rows[0].length * Bubbles.PIXEL;
       const gh = b.rows.length * Bubbles.PIXEL;
-      art(b.rows, { '#': hex(b.color) }, bx + (Bubbles.WIDTH - gw) / 2, by + (Bubbles.HEIGHT - gh) / 2);
-      art(Bubbles.TAILS[b.tail], { '#': ink, P: hex(Bubbles.PAPER) }, bx + Bubbles.TAIL_X[b.tail], by + Bubbles.HEIGHT);
+      art(b.rows, { '#': hex(b.color) }, bx + (b.width - gw) / 2, by + (Bubbles.HEIGHT - gh) / 2);
+      art(Bubbles.TAILS[b.tail], { '#': ink, P: hex(Bubbles.PAPER) }, bx + Bubbles.tailX(b.tail, b.width), by + Bubbles.HEIGHT);
     });
   });
 });

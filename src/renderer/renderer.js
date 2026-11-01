@@ -26,6 +26,7 @@ buddyEl.height = 32;
 let animal = null; // Animals.build result, frames as canvases
 let sheets = {}; // animal id → PNG bytes of its walk sheet
 let sessions = [];
+let appUpdate = null; // available Farmies update (see src/updater.js)
 let displays = [];
 let primaryId = null;
 let winSize = [320, 320];
@@ -131,14 +132,28 @@ function setDisplays(info) {
   primaryId = info.primary;
   winSize = info.win;
   if (!hen.placed) {
-    const d = displays.find((x) => x.id === primaryId) || displays[0];
-    hen.x = d.workArea.x + d.workArea.width / 2 - henW() / 2;
+    // back where it was before the last quit, if that display is still there
+    const saved = info.position;
+    const d = displays.find((x) => x.id === saved?.displayId) || displays.find((x) => x.id === primaryId) || displays[0];
+    hen.x = d.id === saved?.displayId ? saved.x : d.workArea.x + d.workArea.width / 2 - henW() / 2;
+    if (saved?.dir) hen.dir = saved.dir;
     hen.placed = true;
     land(d);
   } else if (!inAir()) {
     land(currentDisplay()); // display removed or resized: back onto a ground
   }
 }
+
+// remember where the animal is (on the ground), so it is there again after a restart or update
+let savedPos = '';
+function savePosition() {
+  if (!hen.placed || inAir()) return;
+  const pos = { displayId: hen.displayId, x: Math.round(hen.x), dir: hen.dir };
+  if (JSON.stringify(pos) === savedPos) return;
+  savedPos = JSON.stringify(pos);
+  buddyApi.savePosition(pos);
+}
+setInterval(savePosition, 10000);
 
 function land(d) {
   hen.displayId = d.id;
@@ -299,7 +314,8 @@ function layout() {
   const head = headAnchor();
   const hx = lx + head.x * px() + px() / 2;
   const top = (buddyEl.height - head.top) * px(); // highest point of the animal
-  Bubbles.place(bubbleEls.length, hx, top + hen.hop).forEach((pos, i) => {
+  const widths = bubbleEls.map((b) => b.offsetWidth);
+  Bubbles.place(bubbleEls.length, hx, top + hen.hop, widths).forEach((pos, i) => {
     bubbleEls[i].style.left = `${pos.left}px`;
     bubbleEls[i].style.bottom = `${pos.bottom}px`;
   });
@@ -377,9 +393,29 @@ function row(s) {
   return r;
 }
 
+// the update entry on top of the panel
+function updateRow() {
+  const r = el('div', 'row update-row');
+  r.append(el('span', 'dot update'));
+  const text = el('div', 'text');
+  const message =
+    appUpdate.status === 'downloading'
+      ? `Wird geladen … ${appUpdate.progress} %`
+      : appUpdate.status === 'error'
+        ? `Fehlgeschlagen (${appUpdate.error}), nochmal klicken`
+        : appUpdate.installable
+          ? 'Klicken zum Installieren'
+          : 'Klicken öffnet die Download-Seite';
+  text.append(el('div', 'project', `Farmies ${appUpdate.version} ist da`), el('div', 'message', message));
+  r.append(text);
+  r.addEventListener('click', () => buddyApi.installUpdate());
+  return r;
+}
+
 function renderPanel() {
   const p = pending();
   panelEl.replaceChildren();
+  if (appUpdate) panelEl.append(updateRow());
   if (p.length) {
     panelEl.append(el('div', 'title', p.length === 1 ? '1 Session wartet auf dich' : `${p.length} Sessions warten auf dich`));
     p.forEach((s) => panelEl.append(row(s)));
@@ -398,13 +434,14 @@ function renderPanel() {
 
 // One bubble per waiting session (most urgent first); the last one shows "+N" if there are more.
 function renderBubbles() {
-  bubbleEls = Bubbles.plan(pending()).map((b, i) => {
+  bubbleEls = Bubbles.plan(pending(), appUpdate).map((b, i) => {
     const bubble = el('div', `bubble interactive${b.state ? ` state-${b.state}` : ''}`);
-    bubble.append(
-      pixelArt('glyph', b.rows, { '#': b.color }),
-      pixelArt(`tail tail-${b.tail}`, Bubbles.TAILS[b.tail], { '#': Bubbles.INK, P: Bubbles.PAPER }),
-    );
+    bubble.style.width = `${b.width}px`;
+    const tail = pixelArt(`tail tail-${b.tail}`, Bubbles.TAILS[b.tail], { '#': Bubbles.INK, P: Bubbles.PAPER });
+    tail.style.left = `${Bubbles.tailX(b.tail, b.width)}px`;
+    bubble.append(pixelArt('glyph', b.rows, { '#': b.color }), tail);
     if (b.session) bubble.addEventListener('click', () => buddyApi.focusSession(b.session.id));
+    if (b.update) bubble.addEventListener('click', () => buddyApi.installUpdate());
     bubble.style.zIndex = String(Bubbles.MAX_BUBBLES - i); // middle bubble in front
     bubble.style.animationDelay = `${i * 0.15}s`;
     return bubble;
@@ -502,6 +539,11 @@ buddyApi.onAnimal((id) => setAnimal(id));
 buddyApi.onScale((value) => setScale(value));
 buddyApi.onSessions((list) => {
   sessions = list;
+  renderBubbles();
+  if (hover) renderPanel();
+});
+buddyApi.onUpdate((u) => {
+  appUpdate = u;
   renderBubbles();
   if (hover) renderPanel();
 });
