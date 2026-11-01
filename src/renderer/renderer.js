@@ -465,7 +465,12 @@ function header() {
   } else if (working) {
     head.append(el('b', '', 'Alles ruhig.'), document.createTextNode(working === 1 ? ' Eine arbeitet noch' : ` ${working} arbeiten noch`));
   } else {
-    head.append(el('b', '', 'zzz …'), document.createTextNode(sessions.length ? ' alle schlafen' : ' keine Sessions'));
+    // zZz as pixel art, on one line (the font's capital Z looks like an 8)
+    const zzz = el('span', 'head-zzz');
+    zzz.append(...[Z_SMALL, Z_BIG, Z_SMALL].map((z) => pixelArt('', z, { '#': Bubbles.INK })));
+    head.append(zzz, document.createTextNode(sessions.length ? ' Alles erledigt' : ' Keine aktiven Sessions'));
+    head.classList.add('quiet');
+    head.classList.toggle('empty', !sessions.length);
   }
   return head;
 }
@@ -517,6 +522,10 @@ function showDetails(id) {
   meadowBox.classList.toggle('empty', !s);
   if (!s && appUpdate) {
     meadowBox.append(...updateText());
+    return;
+  }
+  if (!s && !sessions.length) {
+    meadowBox.append(el('div', 'm-hint', 'Sobald Claude Code läuft,'), el('div', 'm-hint', 'erscheint die Session hier.'));
     return;
   }
   if (!s) {

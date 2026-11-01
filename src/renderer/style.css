@@ -184,6 +184,27 @@ body {
   font-size: 15px;
 }
 
+.panel-head.quiet {
+  padding-top: 2px; /* zZz and text sit a pixel lower */
+}
+
+.panel-head.empty {
+  padding-bottom: 16px;
+}
+
+/* zZz in front of the header text */
+.head-zzz {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 2px;
+  margin-right: 2px;
+  vertical-align: -1px;
+}
+
+.head-zzz canvas {
+  image-rendering: pixelated;
+}
+
 .voice {
   color: var(--red);
 }
