@@ -468,8 +468,8 @@ function header() {
     // zZz as pixel art, on one line (the font's capital Z looks like an 8)
     const zzz = el('span', 'head-zzz');
     zzz.append(...[Z_SMALL, Z_BIG, Z_SMALL].map((z) => pixelArt('', z, { '#': Bubbles.INK })));
-    const n = sessions.length;
-    head.append(zzz, document.createTextNode(n ? ` Alles erledigt · ${n === 1 ? '1 Session' : `${n} Sessions`} bereit` : ' Keine aktiven Sessions'));
+    head.append(zzz, document.createTextNode(sessions.length ? ' Alles erledigt' : ' Keine aktiven Sessions'));
+    head.classList.add('quiet');
     head.classList.toggle('empty', !sessions.length);
   }
   return head;

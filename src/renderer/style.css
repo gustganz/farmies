@@ -184,6 +184,10 @@ body {
   font-size: 15px;
 }
 
+.panel-head.quiet {
+  padding-top: 2px; /* zZz and text sit a pixel lower */
+}
+
 .panel-head.empty {
   padding-bottom: 16px;
 }
