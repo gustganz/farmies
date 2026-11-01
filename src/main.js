@@ -186,10 +186,9 @@ function buildMenu(pending) {
       ]
     : [];
   return Menu.buildFromTemplate([
-    // heading: name and version
-    { label: `Farmies ${app.getVersion()}`, enabled: false },
+    { label: 'Über Farmies…', click: showAbout },
+    { label: 'Nach Updates suchen…', click: checkForUpdates },
     ...updateItems,
-    { label: 'Nach Updates suchen', click: checkForUpdates },
     { type: 'separator' },
     {
       label: 'Tier',
@@ -209,37 +208,35 @@ function buildMenu(pending) {
         click: () => setScale(value),
       })),
     },
-    { type: 'separator' },
-    { label: 'Alle als gesehen markieren', enabled: pending > 0, click: () => sessions.dismissAll() },
-    {
-      label: 'Ausblenden',
-      type: 'checkbox',
-      checked: !win?.isVisible(),
-      click: (item) => {
-        if (item.checked) win.hide();
-        else win.showInactive();
-      },
-    },
-    { type: 'separator' },
+    yesNoMenu('Ausblenden', !win?.isVisible(), (hide) => {
+      if (hide) win.hide();
+      else win.showInactive();
+    }),
     ...(autostart.supported()
       ? [
-          {
-            label: 'Beim Login starten',
-            type: 'checkbox',
-            checked: autostart.isEnabled(),
-            click: (item) => {
-              settings.autostart = item.checked;
-              saveSettings();
-              autostart.setEnabled(item.checked);
-            },
-          },
-          { type: 'separator' },
+          yesNoMenu('Beim Login starten', autostart.isEnabled(), (on) => {
+            settings.autostart = on;
+            saveSettings();
+            autostart.setEnabled(on);
+          }),
         ]
       : []),
-    { label: 'Über Farmies', click: showAbout },
+    { type: 'separator' },
+    { label: 'Alle als gesehen markieren', enabled: pending > 0, click: () => sessions.dismissAll() },
     { label: 'Deinstallieren…', click: confirmUninstall },
     { label: 'Beenden', click: () => app.quit() },
   ]);
+}
+
+// A setting as a submenu "Ja"/"Nein" instead of a checkbox: keeps the menu narrow
+function yesNoMenu(label, value, set) {
+  return {
+    label,
+    submenu: [
+      { label: 'Ja', type: 'radio', checked: value, click: () => value || set(true) },
+      { label: 'Nein', type: 'radio', checked: !value, click: () => value && set(false) },
+    ],
+  };
 }
 
 const pendingCount = () => sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state)).length;
