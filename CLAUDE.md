@@ -23,6 +23,8 @@ Feature overview, usage and release steps: README.md.
   extension, macOS via AppleScript).
 - `src/animals.js` (+ `src/poses.js`, lying poses as palette rows): builds every pose from the LPC walk
   sheets in pure JS. `src/bubbles.js`: bubble glyphs and arc layout. Both are UMD (renderer + node).
+- `src/meadow.js`: the seasonal meadow at the bottom of the hover panel (props per month, visiting
+  animals); UMD like `animals.js`. The hook stores short context (prompt, last tool step, result) for it.
 - `src/updater.js` + `src/releases.js`: GitHub Releases updater (hourly + menu "Nach Updates suchen").
 
 ## Working without Windows, Mac or a display

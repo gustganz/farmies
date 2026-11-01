@@ -60,3 +60,48 @@ test('hook: PostToolUse heartbeat at most once a minute, by the ts it wrote itse
   hook('PostToolUse');
   assert.ok(state().ts >= now);
 });
+
+test('hook: context for the hover panel (task, title, branch, step, detail)', () => {
+  const { home, hook, state } = setup();
+  execFileSync('git', ['init', '-q', '-b', 'feature/x', home]);
+  hook('UserPromptSubmit', { prompt: 'Fix the "export" button\nin Safari', session_title: 'Safari export' });
+  assert.strictEqual(state().task, 'Fix the "export" button\nin Safari');
+  assert.strictEqual(state().title, 'Safari export');
+  assert.strictEqual(state().branch, 'feature/x');
+  assert.strictEqual(state().step, '');
+
+  hook('PostToolUse', { tool_name: 'Edit', tool_input: { file_path: `${home}/src/app.js`, old_string: 'a' } });
+  assert.strictEqual(state().step, 'Edit · src/app.js');
+  // within the heartbeat minute only the step changes (same ts), the rest stays
+  const ts = state().ts;
+  hook('PostToolUse', { tool_name: 'Bash', tool_input: { command: 'npm test', description: 'Run tests' } });
+  assert.strictEqual(state().step, 'Bash · npm test');
+  assert.strictEqual(state().ts, ts);
+  assert.strictEqual(state().task, 'Fix the "export" button\nin Safari');
+
+  hook('PermissionRequest', { tool_name: 'Bash', tool_input: { command: 'git push' } });
+  assert.strictEqual(state().detail, 'Bash · git push');
+  hook('Notification', { notification_type: 'permission_prompt', message: 'Claude needs your permission to use Bash' });
+  assert.strictEqual(state().detail, 'Bash · git push');
+
+  hook('Stop', { last_assistant_message: 'Done. The button works now.' });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().detail, 'Done. The button works now.');
+  assert.strictEqual(state().task, 'Fix the "export" button\nin Safari');
+  assert.strictEqual(state().title, 'Safari export');
+  assert.strictEqual(state().step, 'Bash · npm test');
+});
+
+test('hook: questions and errors as detail, long values cut without breaking the JSON', () => {
+  const { hook, state } = setup();
+  hook('PreToolUse', { tool_name: 'AskUserQuestion', tool_input: { questions: [{ question: 'Which colour?', header: 'C' }] } });
+  assert.strictEqual(state().event, 'Question');
+  assert.strictEqual(state().detail, 'Which colour?');
+  hook('StopFailure', { error: 'rate_limit' });
+  assert.strictEqual(state().detail, 'rate_limit');
+  // cut right inside escape sequences: the state file still parses
+  for (let n = 290; n < 302; n++) {
+    hook('UserPromptSubmit', { prompt: `${'x'.repeat(n)}\\\\"\u0001ä${'y'.repeat(20)}` });
+    assert.ok(state().task.startsWith('xxx'), String(n));
+  }
+});

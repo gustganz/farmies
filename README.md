@@ -15,7 +15,12 @@ Bescheid geben, wenn eine Claude-Code-Session dich braucht. Standard ist das Huh
 - **Packen & fallen lassen**: Tier mit der Maus greifen (Frontansicht, strampelt; das Huhn flattert) und es
   schaukelt beim Schwenken nach. Loslassen, auch auf einem anderen Bildschirm: es landet am unteren Rand;
   das Huhn segelt aus größerer Höhe mit ausgebreiteten Flügeln herunter.
-- **Hover**: Liste der Sessions (Projekt, was ansteht, seit wann). Befehle oder Inhalte werden nicht gespeichert.
+- **Hover**: eine große Sprechblase. Oben die wartenden Sessions, darunter alle Sessions als Namensschilder
+  (Rahmenfarbe = Zustand, arbeitend: drehende Farben). Fährt man über eine, zeigt die Wiese unten Auftrag,
+  Branch und letzten Schritt (bzw. Freigabe, Frage, Ergebnis, Fehler). Dafür speichert der Hook je Session
+  kurze Auszüge (letzter Prompt, letzter Tool-Aufruf, letzte Antwort, je max. 300 Zeichen) lokal in
+  `~/.farmies/sessions/`; nichts davon verlässt den Rechner. Die Wiese wechselt jeden Monat ihr Aussehen, und
+  alle 1–3 Stunden kommt ein kleines Tier der Jahreszeit vorbei, das wegläuft, wenn man mit der Maus hinfährt.
 - **Klick** auf eine Blase oder einen Eintrag: holt genau diese Session nach vorne.
   - Windows Terminal: der richtige Tab (die App lernt ihn über eine kurze Markierung im Tab-Titel)
   - Cursor, VS Code, Windsurf: das Fenster und dort das Terminal der Session (Begleit-Erweiterung, wird
