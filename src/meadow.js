@@ -24,7 +24,7 @@
     /* Aug */ { name: 'August', ground: '#6a7d2d', blade: '#6a7d2d', tip: '#b3a64a', tuft: '#7a8c36', text: '#f5f3e1', muted: '#ece3b5', flowers: ['sunBig', 'hay'] },
     /* Sep */ { name: 'September', ground: '#64692c', blade: '#64692c', tip: '#a39a45', tuft: '#727835', text: '#f5f3e1', muted: '#e6dfb2', flowers: ['sunDroop', 'pumpkinSmall'] },
     /* Okt */ { name: 'Oktober', ground: '#6e5426', blade: '#6e5426', tip: '#b77a2c', tuft: '#7f6230', text: '#f5f3e1', muted: '#f0d9ae', flowers: ['pumpkinFace', 'mushroom'] },
-    /* Nov */ { name: 'November', ground: '#54473a', blade: '#54473a', tip: '#7b6a52', tuft: '#5f5143', text: '#f5f3e1', muted: '#dccfba', flowers: ['leafPile', 'mushroom'] },
+    /* Nov */ { name: 'November', ground: '#54473a', blade: '#54473a', tip: '#7b6a52', tuft: '#5f5143', text: '#f5f3e1', muted: '#dccfba', flowers: ['mapleLeaf', 'mushroom'] },
     /* Dez */ { name: 'Dezember', ground: '#e8eef1', blade: '#e8eef1', tip: '#cbd6dc', tuft: '#d5dee3', text: '#2b2118', muted: '#5d6b75', flowers: ['snowball', 'twig'], snow: true },
   ];
 
@@ -67,6 +67,22 @@
     sunDroop: { rows: ['.ss..', 's..yy', 's..yb', 's....', 's....'], c: { y: '#c99a2f', b: '#5a3a1d', s: '#7a7a2a' } },
     pumpkinSmall: { rows: ['..sl.', '.oOo.', 'oOoOo', '.oOo.'], c: { s: '#5a4a1d', l: '#5c9a3a', o: '#e8862a', O: '#b8601a' } },
     pumpkinFace: { rows: ['...sl..', '.OoOoO.', 'OoyoyoO', 'OoooooO', 'OoyyyoO', '.OoOoO.'], c: { s: '#5a4a1d', l: '#5c9a3a', o: '#e8862a', O: '#b8601a', y: '#ffd76a' } },
+    // drawn 1:1 (s: 1), finer than the other props
+    mapleLeaf: { s: 1, rows: ['.......k.......',
+      '......kok......',
+      '..k..koook..k..',
+      '..kk.kovok.kk..',
+      '..kokkovokkok..',
+      'k.koooovoooodk.',
+      'kkkovoovoovodkk',
+      '.kooovovovoodk.',
+      '..kooovvvoodk..',
+      'kkkoooovooodkkk',
+      '.koooooveooddk.',
+      '..kkkoovodkkk..',
+      '....kkkvkkk....',
+      '.......v.......',
+      '.......v.......'], c: { k: '#6b3414', o: '#c8682a', d: '#a8501e', v: '#7a3a16', e: '#7a3a16' } },
     leafPile: { rows: ['..o.r.', 'robboo', 'obrrob'], c: { o: '#d9822a', r: '#b5452a', b: '#8a5a2a' } },
     snowball: { rows: ['.wwg.', 'wwwwg', 'wwwgg', '.ggg.'], c: { w: '#ffffff', g: '#b9c4cb' } },
   };
@@ -154,7 +170,7 @@
     return x - Math.floor(x);
   }
 
-  function put(ctx, rows, colors, x, y, flip = false) {
+  function put(ctx, rows, colors, x, y, flip = false, S = 2) {
     rows.forEach((line, dy) => [...line].forEach((ch, dx) => {
       const c = colors[ch];
       if (!c) return;
@@ -198,9 +214,10 @@
     const LIFT = [3, 1, 0]; // logical px: the corner piece sits a bit higher, not all on one line
     m.flowers.forEach((f, i) => {
       const fl = FLOWERS[f];
-      const rows = fl.rows.slice(0, 7);
-      x -= rows[0].length * S;
-      put(ctx, rows, fl.c, x, GROUND_Y + 1 - rows.length * S - LIFT[i]);
+      const s = fl.s || S;
+      const rows = fl.rows.slice(0, Math.floor(15 / s)); // at most 15 meadow px high
+      x -= rows[0].length * s;
+      put(ctx, rows, fl.c, x, GROUND_Y + 1 - rows.length * s - LIFT[i], false, s);
       x -= 3;
     });
   }

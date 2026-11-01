@@ -19,9 +19,9 @@ test('meadow: art is well-formed and small enough for the corner', () => {
     assert.ok([...f.rows.join('')].every((c) => c === '.' || f.c[c]), `${name}: colour missing`);
   }
   for (const m of M.MONTHS) {
-    const width = m.flowers.reduce((w, f) => w + M.FLOWERS[f].rows[0].length * 2 + 3, 0);
+    const width = m.flowers.reduce((w, f) => w + M.FLOWERS[f].rows[0].length * (M.FLOWERS[f].s || 2) + 3, 0);
     assert.ok(width <= M.ZONE, `${m.name}: props wider than the corner`);
-    assert.ok(m.flowers.every((f) => M.FLOWERS[f].rows.length <= 7), m.name);
+    assert.ok(m.flowers.every((f) => M.FLOWERS[f].rows.length * (M.FLOWERS[f].s || 2) <= 15), m.name);
   }
   for (const [name, a] of Object.entries(M.ANIMALS)) {
     for (const fr of a.frames) assert.ok(fr.every((r) => r.length === fr[0].length), name);
