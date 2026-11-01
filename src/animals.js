@@ -1,13 +1,15 @@
 // Farm animals from "LPC style farm animals" by Daniel Eddeland (CC-BY 3.0, see assets/CREDITS.md).
 // Builds all animation frames from an animal's walk sheet (rows: up, left, down, right; 4 frames
 // each). Frames for walking right are mirrored from walking left. Derived poses:
-//   idle (standing), sleep (lying, eyes closed, breathing), front (looking at you), held (front
-//   view, legs kicking; the chicken also flaps), glide (chicken only: wings spread, comb and tail
-//   fluttering).
+//   idle (standing), lie (lying down) and sleep (eyes closed, breathing; both from src/poses.js),
+//   front (looking at you), held (front view, legs kicking; the chicken also flaps), glide (chicken
+//   only: wings spread, comb and tail fluttering).
 // Pure functions on RGBA frames { w, h, data }; shared by the renderer (script tag) and node (tests).
 (function (root) {
   'use strict';
 
+  // lying poses, see src/poses.js
+  const { LYING } = typeof module !== 'undefined' && module.exports ? require('./poses') : root.Poses;
   const ROW = { up: 0, left: 1, down: 2, right: 3 };
 
   // frame: size of a frame in the sheet; size: display size relative to the chicken's pixels.
@@ -15,8 +17,7 @@
   // bigger than the chicken without dwarfing it (halve: true would scale them down to its pixels).
   const ANIMALS = {
     chicken: { label: 'Huhn', sheet: 'chicken_walk.png', frame: 32, size: 1, canFly: true },
-    // lieHigher: lying, the belly ends this many rows above where the legs part (hides the udder)
-    cow: { label: 'Kuh', sheet: 'cow_walk.png', frame: 128, size: 0.75, lieHigher: 3 },
+    cow: { label: 'Kuh', sheet: 'cow_walk.png', frame: 128, size: 0.75 },
     pig: { label: 'Schwein', sheet: 'pig_walk.png', frame: 128, size: 0.75 },
     sheep: { label: 'Schaf', sheet: 'sheep_walk.png', frame: 128, size: 0.75 },
     llama: { label: 'Lama', sheet: 'llama_walk.png', frame: 128, size: 0.75 },
@@ -177,31 +178,21 @@
     return y + 1;
   }
 
-  /**
-   * Bottom of the belly of a four-legged animal in side view: the first row below the middle with a
-   * gap between front and back legs (the udder hangs in the gap, it is cut too). null if none.
-   */
-  function bellyBottom(f) {
-    const box = bbox([f]);
-    const minGap = Math.max(3, Math.round((box.x1 - box.x0) * 0.08));
-    for (let y = Math.round((box.y0 + box.y1) / 2); y <= box.y1; y++) {
-      const xs = [];
-      for (let x = box.x0; x <= box.x1; x++) if (opaque(f, x, y)) xs.push(x);
-      for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] - 1 >= minGap) return y;
-    }
-    return null;
-  }
+  const hexColor = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(255);
 
-  /** Closes the body at a cut: the lowest pixel of every column becomes outline. */
-  function outlineBottom(f, ink) {
-    const out = clone(f);
-    for (let x = 0; x < f.w; x++) {
-      for (let y = f.h - 1; y >= 0; y--) {
-        if (!opaque(f, x, y)) continue;
-        set(out, x, y, ink);
-        break;
-      }
-    }
+  /**
+   * Breathing out while asleep: the back (behind the head, the upper part of the body) sinks by a
+   * pixel; the head stays.
+   */
+  function breathe(f) {
+    const box = bbox([f]);
+    const backX = box.x0 + Math.round((box.x1 - box.x0) * 0.35);
+    let backTop = box.y1;
+    for (let x = backX; x <= box.x1; x++) for (let y = box.y0; y < backTop; y++) if (opaque(f, x, y)) backTop = y;
+    const chest = backTop + Math.round((box.y1 - backTop) * 0.4);
+    const out = blank(f.w, f.h);
+    paste(out, f, 0, 0, (x, y) => x < backX || y >= chest);
+    paste(out, f, 0, 1, (x, y) => x >= backX && y < chest);
     return out;
   }
 
@@ -220,46 +211,6 @@
       }
     }
     return { x: box.x0, y: box.y0 };
-  }
-
-  /** Eye pixels: the darkest inner pixels in the head area. */
-  function eye(f) {
-    const box = bbox([f]);
-    const h = head(f);
-    const x0 = box.x0;
-    const x1 = box.x0 + Math.round((box.x1 - box.x0) * 0.45);
-    const y1 = h.y + Math.round((box.y1 - box.y0) * 0.45);
-    let candidates = [];
-    for (let y = h.y; y <= y1; y++) {
-      for (let x = x0; x <= x1; x++) {
-        if (!opaque(f, x, y)) continue;
-        if (![[1, 0], [-1, 0], [0, 1], [0, -1]].every(([dx, dy]) => opaque(f, x + dx, y + dy))) continue;
-        candidates.push({ x, y, l: lum(rgb(f, x, y)) });
-      }
-    }
-    if (!candidates.length) return [];
-    const darkest = Math.min(...candidates.map((c) => c.l));
-    candidates = candidates.filter((c) => c.l <= darkest + 8);
-    // keep the cluster around the first (front-most, top-most) one
-    const first = candidates.sort((a, b) => a.x - b.x || a.y - b.y)[0];
-    return candidates.filter((c) => Math.abs(c.x - first.x) <= 1 && Math.abs(c.y - first.y) <= 2);
-  }
-
-  function closeEyes(f, eyePx) {
-    const out = clone(f);
-    if (!eyePx.length) return out;
-    const eyeColor = rgb(f, eyePx[0].x, eyePx[0].y);
-    const isEye = (x, y) => eyePx.some((p) => p.x === x && p.y === y);
-    for (const p of eyePx) {
-      // fill with the surrounding feather/skin colour
-      const around = [[1, 0], [-1, 0], [0, -1], [0, 1]].map(([dx, dy]) => [p.x + dx, p.y + dy]).find(([x, y]) => opaque(f, x, y) && !isEye(x, y));
-      if (around) set(out, p.x, p.y, rgb(f, around[0], around[1]));
-    }
-    // lid: a short horizontal line at the eye's lowest row
-    const low = Math.max(...eyePx.map((p) => p.y));
-    const xs = eyePx.filter((p) => p.y === low).map((p) => p.x);
-    for (const x of [Math.min(...xs) - 1, ...xs]) if (opaque(f, x, low)) set(out, x, low, eyeColor);
-    return out;
   }
 
   // Removes the folded wing (chicken): within its oval, the wing's lines and shading become the
@@ -462,30 +413,22 @@
     if (a.canFly) front = lowerFrontTail(shadeBackground(front, m(CHICKEN.frontTailBottom) + frontShift));
 
     const stand = walk[0];
-    // the chicken's legs are thin rows below the body; four-legged animals lie on their belly
-    const belly = !a.canFly && bellyBottom(stand);
-    const top = belly ? belly - (a.lieHigher || 0) : legTop(stand);
-    const settle = ground - (top - 1); // lying: body bottom onto the ground
 
-    // poses on the uncropped frame
-    let sleepy = closeEyes(stand, eye(stand));
-    if (!a.canFly) {
-      // without legs the body needs an outline at its new bottom (colour of the back's outline)
-      const box = bbox([stand]);
-      const back = Math.round((box.x0 + box.x1) / 2);
-      let y = 0;
-      while (y < stand.h && !opaque(stand, back, y)) y++;
-      const cut = blank(stand.w, stand.h);
-      paste(cut, sleepy, 0, 0, (x, yy) => yy < top);
-      sleepy = outlineBottom(cut, rgb(stand, back, y));
-    }
-    const sleep = [0, 1].map((breath) => {
+    // Lying: lying down (awake), then asleep and breathing (src/poses.js), on the uncropped frame.
+    const lying = LYING[id];
+    const standX = bbox([stand]).x0;
+    const pose = (rows) => {
       const f = blank(stand.w, stand.h);
-      const chest = Math.round((head(stand).y + top) / 2);
-      paste(f, sleepy, 0, settle, (x, y) => y < top && (breath === 0 || y >= chest));
-      if (breath) paste(f, sleepy, 0, settle + 1, (x, y) => y < chest);
+      rows.forEach((line, y) =>
+        [...line].forEach((ch, x) => {
+          if (ch !== '.') set(f, standX + lying.dx + x, ground - rows.length + 1 + y, hexColor(lying.palette[ch]));
+        }),
+      );
       return f;
-    });
+    };
+    const lie = pose(lying.lie);
+    const asleep = pose(lying.sleep);
+    const sleep = [asleep, breathe(asleep)];
 
     // Held up: front view, legs kicking (pulled in by turns); the chicken also flaps its wings.
     const frontTop = legTop(front);
@@ -517,14 +460,14 @@
     }
 
     // common crop for all frames, with room for wings and kicking legs
-    const all = [...walk, front, ...sleep, ...held, ...glide];
+    const all = [...walk, front, lie, ...sleep, ...held, ...glide];
     const box = bbox(all);
     const pad = 2;
     const cut = (f) => crop(f, box, pad);
     const at = (p) => ({ x: p.x - box.x0 + pad, y: p.y - box.y0 + pad });
 
     walk = walk.map(cut);
-    const left = { walk, idle: walk[0], sleep: sleep.map(cut), glide: glide.map(cut) };
+    const left = { walk, idle: walk[0], lie: cut(lie), sleep: sleep.map(cut), glide: glide.map(cut) };
     const right = Object.fromEntries(
       Object.entries(left).map(([k, v]) => [k, Array.isArray(v) ? v.map(mirror) : mirror(v)]),
     );
@@ -535,7 +478,8 @@
     // anchor: head centre x, head top y, and the pose's top row (bubbles stay above all of it)
     const topOf = (frames) => bbox(frames).y0;
     const headLeft = { ...at(head(stand)), top: topOf(walk) };
-    const headSleep = { x: headLeft.x, y: headLeft.y + settle, top: topOf(left.sleep) };
+    const headSleep = { ...at(head(asleep)), top: topOf(left.sleep) };
+    const headLie = { ...at(head(lie)), top: topOf([left.lie]) };
     const frontBox = bbox([front]);
     const headFront = { x: Math.round((frontBox.x0 + frontBox.x1) / 2), y: frontBox.y0, top: frontBox.y0 };
     const mirrorX = (p) => ({ ...p, x: w - 1 - p.x });
@@ -552,13 +496,15 @@
         right: mirrorX(headLeft),
         sleepLeft: headSleep,
         sleepRight: mirrorX(headSleep),
+        lieLeft: headLie,
+        lieRight: mirrorX(headLie),
         front: headFront,
         held: { ...headFront, top: topOf(held) },
       },
     };
   }
 
-  const api = { ANIMALS, DEFAULT_ANIMAL, build, halve, mirror, legTop, head, eye, bbox };
+  const api = { ANIMALS, DEFAULT_ANIMAL, build, halve, mirror, legTop, head, bbox };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Animals = api;
 })(this);
