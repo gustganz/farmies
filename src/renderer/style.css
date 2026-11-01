@@ -199,7 +199,7 @@ body {
 /* a waiting session: its bubble glyph, name and label, the time (on hover: where a click goes) */
 .big-row {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr) auto;
+  grid-template-columns: 40px minmax(0, 1fr) auto;
   align-items: center;
   gap: 6px;
   padding: 3px 4px;
@@ -211,6 +211,7 @@ body {
 }
 
 .mini {
+  justify-self: center;
   width: 26px;
   height: 22px;
   margin: 2px;
@@ -224,6 +225,14 @@ body {
 .mini canvas {
   display: block;
   image-rendering: pixelated;
+}
+
+.mini-update {
+  width: 34px;
+}
+
+.big-label.label-update {
+  color: var(--orange);
 }
 
 .state-done .mini {
@@ -282,7 +291,7 @@ body {
   display: flex;
   flex-wrap: wrap;
   gap: 6px;
-  padding: 8px 4px 6px;
+  padding: 8px 4px 14px;
 }
 
 @property --a {
@@ -354,58 +363,19 @@ body {
   }
 }
 
-/* new Farmies version: an orange band above the meadow */
-.update-band {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin: 4px -8px 0;
-  padding: 6px 12px;
-  background: #fbe3c6;
-  border-top: 2px solid var(--ink);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.update-band canvas {
-  image-rendering: pixelated;
-}
-
-.update-text {
-  flex: 1;
-  min-width: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.update-btn {
-  padding: 1px 6px;
-  background: var(--orange);
-  color: #fff;
-  box-shadow: var(--pixel-border);
-  font-size: 13px;
-  font-weight: 400;
-  white-space: nowrap;
-}
-
-.update-band:hover .update-btn {
-  background: var(--ink);
-}
-
 /* the meadow: changes with the month; three lines about the hovered session, always the same
    height. The bottom right corner stays free for the props and the visitor. */
 .meadow {
   position: relative;
   height: 66px;
-  margin: 8px -8px 0;
+  margin: 0 -8px;
   color: var(--m-text);
 }
 
 .meadow-canvas {
   position: absolute;
   left: 0;
-  top: -6px;
+  top: -6px; /* the grass tips stand over the list's bottom; between them the list shows through */
   width: 304px;
   height: 72px;
   image-rendering: pixelated;

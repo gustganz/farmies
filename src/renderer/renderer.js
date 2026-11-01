@@ -489,22 +489,28 @@ function tag(s) {
   return hoverable(t, s);
 }
 
-function updateBand() {
-  const u = el('div', 'update-band');
+// a new Farmies version: a row like the waiting sessions, on top, with the NEW bubble
+function updateRow() {
+  const r = el('div', 'big-row state-update');
+  const mini = el('span', 'mini mini-update');
   const g = Bubbles.UPDATE;
-  u.append(pixelArt('', g.rows, { '#': g.color }));
-  const message =
+  mini.append(pixelArt('', g.rows, { '#': g.color }));
+  const label =
     appUpdate.status === 'downloading'
       ? `Wird geladen … ${appUpdate.progress} %`
       : appUpdate.status === 'error'
-        ? 'Fehlgeschlagen, nochmal'
+        ? 'Fehlgeschlagen, nochmal klicken'
         : appUpdate.installable
-          ? 'Installieren'
-          : 'Download-Seite';
-  u.append(el('span', 'update-text', `Farmies ${appUpdate.version} ist da`), el('span', 'update-btn', message));
-  if (appUpdate.status === 'error') u.title = appUpdate.error || '';
-  u.addEventListener('click', () => buddyApi.installUpdate());
-  return u;
+          ? 'Klicken zum Installieren'
+          : 'Klicken öffnet die Download-Seite';
+  const text = el('div', 'big-text');
+  text.append(el('div', 'big-name', `Farmies ${appUpdate.version} ist da`), el('div', 'big-label label-update', label));
+  const when = el('span', 'big-when');
+  when.append(el('span', 'ago', ''), el('span', 'goto', appUpdate.installable ? 'installieren ›' : 'öffnen ›'));
+  r.append(mini, text, when);
+  if (appUpdate.status === 'error') r.title = appUpdate.error || '';
+  r.addEventListener('click', () => buddyApi.installUpdate());
+  return r;
 }
 
 // the last line in the meadow: what the session did last, by its state
@@ -559,12 +565,12 @@ function renderPanel() {
   panelEl.replaceChildren();
   panelEl.append(header());
   const body = el('div', 'panel-body');
+  if (appUpdate) body.append(updateRow());
   pending().forEach((s) => body.append(bigRow(s)));
   const tags = el('div', 'tags');
   [...sessions].sort((a, b) => a.project.localeCompare(b.project, 'de')).forEach((s) => tags.append(tag(s)));
   if (sessions.length) body.append(tags);
   panelEl.append(body);
-  if (appUpdate) panelEl.append(updateBand());
   panelEl.append(meadowPart());
   const m = Meadow.MONTHS[meadow.month];
   panelEl.append(pixelArt('panel-tail', TAIL, { '#': Bubbles.INK, P: m.ground }));
