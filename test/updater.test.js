@@ -104,3 +104,10 @@ test('MAC_SCRIPT swaps the bundle after the app quit and starts it', { skip: pro
   assert.strictEqual(fs.readFileSync(path.join(dir, 'opened'), 'utf8').trim(), app);
   fs.rmSync(dir, { recursive: true });
 });
+
+test('windowsLaunch: PowerShell gets its own console via cmd start (detached it would not run)', () => {
+  const [cmd, args] = require('../src/updater').windowsLaunch('Write-Output 1');
+  assert.strictEqual(cmd, 'cmd.exe');
+  assert.deepStrictEqual(args.slice(0, 5), ['/d', '/c', 'start', '""', '/min']);
+  assert.strictEqual(Buffer.from(args.at(-1), 'base64').toString('utf16le'), 'Write-Output 1');
+});
