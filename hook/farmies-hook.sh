@@ -174,9 +174,12 @@ case "$event" in
       else
         set_title "$project"
       fi
-    elif [ "$event" = PostToolUse ] && [ -n "$(find "$BUDDY_DIR/$sid.json" -mmin -1 2>/dev/null)" ]; then
+    elif [ "$event" = PostToolUse ]; then
       # PostToolUse fires for every tool call: a "still working" heartbeat once a minute is enough.
-      exit 0
+      # Compared with the ts the hook wrote (same clock): under WSL the file time comes from Windows,
+      # whose clock may differ from the WSL clock.
+      last=$(sed -n 's/.*"event":"PostToolUse".*"ts":\([0-9]*\).*/\1/p' "$BUDDY_DIR/$sid.json" 2>/dev/null)
+      [ -n "$last" ] && [ $(($(date +%s) - last)) -lt 60 ] && exit 0
     fi
     tty="" # detect afresh (it may have been read from the marker file above)
     detect_context
