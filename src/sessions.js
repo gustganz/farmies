@@ -92,7 +92,7 @@ class Sessions extends EventEmitter {
         }
         this.cache.set(file, entry);
       }
-      list.push(this.toSession(entry.data));
+      list.push(this.toSession(entry.data, entry.mtime));
     }
     list.sort((a, b) => b.ts - a.ts);
 
@@ -104,8 +104,13 @@ class Sessions extends EventEmitter {
     }
   }
 
-  toSession(d) {
-    const ts = (Number(d.ts) || 0) * 1000;
+  /**
+   * d: the state file's content, mtime: its modification time. The time of the event is taken from
+   * the file, not from d.ts: under WSL the hook's clock (d.ts) may be minutes off the Windows clock
+   * after sleep, while the file time on the Windows drive comes from Windows, like Date.now() here.
+   */
+  toSession(d, mtime = (Number(d.ts) || 0) * 1000) {
+    const ts = mtime;
     // Needs the user: attention (permission) · question · error (stopped by an error) · done.
     // Otherwise: working (busy) or idle.
     let state = NEEDS_USER[d.event] || 'idle';
@@ -113,7 +118,10 @@ class Sessions extends EventEmitter {
       state = 'working';
     }
     if (NEEDS_USER_STATES.includes(state) && (this.dismissed.get(d.session_id) || 0) >= ts) state = 'idle';
-    if ((state === 'question' || state === 'attention') && this.transcriptChangedSince(d, ts)) state = 'idle';
+    // the transcript lives in WSL too: compared with the hook's own clock
+    if ((state === 'question' || state === 'attention') && this.transcriptChangedSince(d, (Number(d.ts) || 0) * 1000)) {
+      state = 'idle';
+    }
 
     const folder = d.folder || d.cwd || '';
     return {
