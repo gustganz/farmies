@@ -1,0 +1,180 @@
+#!/bin/sh
+# Farmies hook: records the state of a Claude Code session for the desktop buddy.
+# Called by Claude Code hooks as `hook.sh <EventName>` with the hook JSON on stdin.
+# Writes one small JSON file per session into $BUDDY_DIR (latest event wins).
+
+event="$1"
+conf="$HOME/.farmies/config"
+[ -f "$conf" ] && . "$conf"
+BUDDY_DIR="${BUDDY_DIR:-$HOME/.farmies/sessions}"
+ATTN_DIR="$HOME/.farmies/attn"
+
+input=$(cat)
+
+# Extracts a top-level JSON string value (still JSON-escaped, which is what we write back).
+field() {
+  printf '%s' "$input" \
+    | grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"" \
+    | head -n 1 \
+    | sed -E 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//; s/"$//'
+}
+
+# Escapes a plain string for embedding in JSON.
+esc() {
+  printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
+
+sid=$(field session_id | tr -cd 'A-Za-z0-9_-')
+[ -n "$sid" ] || exit 0
+cwd=$(field cwd)
+message=""
+ntype=""
+term=""
+tty=""
+folder=""
+app=""
+pids=""
+
+# Where the session runs, so the buddy can bring exactly that window/tab to the front:
+#   term: cursor | vscode | vscode-insiders | windsurf | jetbrains | wt | apple-terminal | iterm | unknown
+#   app:  macOS bundle id of the host application (macOS passes it to every process)
+#   tty:  terminal device of the Claude process · pids: its ancestors (editor terminals are
+#         matched by their shell pid, see extension/extension.js)
+detect_context() {
+  app="${__CFBundleIdentifier:-}"
+  case "$PATH" in
+    # WSL remote: the integrated terminal has the editor's server CLI on the PATH
+    *"/.cursor-server/"*) term=cursor ;;
+    *"/.windsurf-server/"*) term=windsurf ;;
+    *"/.vscode-server-insiders/"*) term=vscode-insiders ;;
+    *"/.vscode-server/"*) term=vscode ;;
+    *)
+      if [ "$TERM_PROGRAM" = vscode ]; then
+        case "$app" in
+          com.todesktop.230313mzl4w4u92) term=cursor ;;
+          com.exafunction.windsurf) term=windsurf ;;
+          com.microsoft.VSCodeInsiders) term=vscode-insiders ;;
+          *) term=vscode ;;
+        esac
+      elif [ "$TERMINAL_EMULATOR" = JetBrains-JediTerm ]; then
+        term=jetbrains
+      elif [ -n "$WT_SESSION" ]; then
+        term=wt
+      elif [ "$TERM_PROGRAM" = Apple_Terminal ]; then
+        term=apple-terminal
+      elif [ "$TERM_PROGRAM" = iTerm.app ]; then
+        term=iterm
+      else
+        term=unknown
+      fi
+      ;;
+  esac
+
+  # Walk up the parents: collect their pids and the first controlling terminal.
+  pid=$PPID
+  for _ in 1 2 3 4 5 6 7 8; do
+    case "$pid" in "" | 0 | 1) break ;; esac
+    pids="$pids $pid"
+    if [ -z "$tty" ]; then
+      t=$(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')
+      case "$t" in "" | "?" | "??") ;; *) tty="$t" ;; esac
+    fi
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d ' ')
+  done
+  pids="${pids# }"
+
+  folder=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")
+}
+
+# Tab titles are used to find the tab of a session in WSL terminals (Windows Terminal etc., not in
+# editors). WT_SESSION is not always passed into WSL, so it is not required.
+can_title() {
+  case "$term" in cursor | vscode | vscode-insiders | windsurf | jetbrains) return 1 ;; esac
+  [ -n "$tty" ] && [ -w "/dev/$tty" ] && grep -qi microsoft /proc/version 2>/dev/null
+}
+
+set_title() {
+  can_title || return 0
+  printf '\033]0;%s\007' "$1" >"/dev/$tty" 2>/dev/null
+}
+
+write_state() {
+  mkdir -p "$BUDDY_DIR" || return 0
+  tmp="$BUDDY_DIR/.$sid.tmp"
+  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","ts":%s}\n' \
+    "$sid" "$event" "$cwd" "$(esc "$folder")" "$message" "$ntype" "$term" "$(esc "$app")" "$(esc "$tty")" \
+    "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
+}
+
+# PreToolUse is only registered for AskUserQuestion: Claude asks the user a question.
+[ "$event" = PreToolUse ] && event=Question
+
+case "$event" in
+  Notification | PermissionRequest | Stop | Question | StopFailure)
+    # A question may also trigger a notification or permission request; keep it a question.
+    case "$event" in Notification | PermissionRequest)
+      [ "$(sed -n 4p "$ATTN_DIR/$sid" 2>/dev/null)" = Question ] && exit 0 ;;
+    esac
+    ntype=$(field notification_type)
+    detect_context
+    write_state
+    project=$(basename "$folder")
+    mkdir -p "$ATTN_DIR"
+    printf '%s\n%s\n%s\n%s\n' "$term" "$tty" "$project" "$event" >"$ATTN_DIR/$sid"
+    # Briefly mark the tab title so the buddy app (Windows) learns which tab this session runs in;
+    # the app then hands back the previous title in "<sid>.restore" (see src/wt-tabs.js).
+    # Unique per session: several tabs may work on the same project.
+    if can_title; then
+      mark="(!) $project #$(printf '%.4s' "$sid")"
+      rm -f "$BUDDY_DIR/$sid.restore" "$BUDDY_DIR/$sid.restored"
+      set_title "$mark"
+      # In the background (max. ~20 s): write back the title the app hands over. Claude Code sets
+      # its own title right after some hooks (e.g. when a turn ends), so the marker is put back now
+      # and then until the app has seen it.
+      (
+        i=0
+        while [ "$i" -lt 40 ]; do
+          sleep 0.5
+          [ -f "$ATTN_DIR/$sid" ] || exit 0
+          if [ -f "$BUDDY_DIR/$sid.restore" ]; then
+            set_title "$(cat "$BUDDY_DIR/$sid.restore")"
+            mv -f "$BUDDY_DIR/$sid.restore" "$BUDDY_DIR/$sid.restored"
+            exit 0
+          fi
+          case $i in 2 | 4 | 8 | 14) set_title "$mark" ;; esac
+          i=$((i + 1))
+        done
+      ) </dev/null >/dev/null 2>&1 &
+    fi
+    ;;
+  UserPromptSubmit | PostToolUse)
+    if [ -f "$ATTN_DIR/$sid" ]; then
+      {
+        read -r term
+        read -r tty
+        read -r project
+      } <"$ATTN_DIR/$sid"
+      rm -f "$ATTN_DIR/$sid"
+      # nobody handed back the old title (buddy app not running): at least remove the marker
+      if [ -f "$BUDDY_DIR/$sid.restored" ]; then
+        rm -f "$BUDDY_DIR/$sid.restored"
+      else
+        set_title "$project"
+      fi
+    elif [ "$event" = PostToolUse ] && [ -n "$(find "$BUDDY_DIR/$sid.json" -mmin -1 2>/dev/null)" ]; then
+      # PostToolUse fires for every tool call: a "still working" heartbeat once a minute is enough.
+      exit 0
+    fi
+    tty="" # detect afresh (it may have been read from the marker file above)
+    detect_context
+    write_state
+    ;;
+  SessionStart)
+    detect_context
+    write_state
+    ;;
+  SessionEnd)
+    rm -f "$BUDDY_DIR/$sid.json" "$BUDDY_DIR/$sid.tab" "$BUDDY_DIR/$sid.restore" "$BUDDY_DIR/$sid.restored" "$ATTN_DIR/$sid"
+    ;;
+esac
+exit 0

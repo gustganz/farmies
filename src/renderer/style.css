@@ -1,0 +1,293 @@
+/* Pixel look matching the hen sprite: 2px "pixels", black outline, cream paper, comb red. */
+
+@font-face {
+  font-family: 'Pixelify Sans';
+  src: url('../../node_modules/@fontsource/pixelify-sans/files/pixelify-sans-latin-400-normal.woff2') format('woff2');
+  font-weight: 400;
+}
+
+@font-face {
+  font-family: 'Pixelify Sans';
+  src: url('../../node_modules/@fontsource/pixelify-sans/files/pixelify-sans-latin-700-normal.woff2') format('woff2');
+  font-weight: 700;
+}
+
+/* Digits only: Pixelify's 3 and 8 look too alike, Silkscreen's are clear (size matched by eye). */
+@font-face {
+  font-family: 'Buddy Digits';
+  src: url('../../node_modules/@fontsource/silkscreen/files/silkscreen-latin-400-normal.woff2') format('woff2');
+  unicode-range: U+0030-0039;
+  size-adjust: 90%;
+}
+
+:root {
+  --px: 2px;
+  --ink: #000000;
+  --paper: #f5f3e1;
+  --paper-dark: #dcd9bf;
+  --text: #2b2118;
+  --muted: #6b6650;
+  --red: #c72626;
+  --green: #3f8f2f;
+  --blue: #2f6fd0;
+  --gray: #9e9c86;
+  /* outline with notched corners */
+  --pixel-border:
+    0 calc(-1 * var(--px)) 0 0 var(--ink), 0 var(--px) 0 0 var(--ink), calc(-1 * var(--px)) 0 0 0 var(--ink),
+    var(--px) 0 0 0 var(--ink);
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+  overflow: hidden;
+  background: transparent;
+  user-select: none;
+  font-family: 'Buddy Digits', 'Pixelify Sans', monospace;
+  -webkit-font-smoothing: none;
+}
+
+.hidden {
+  display: none !important;
+}
+
+#buddy {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  image-rendering: pixelated;
+  cursor: pointer;
+  transform-origin: 50% 0; /* swings from the top when carried */
+}
+
+/* Speech bubble */
+
+.bubble {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 24px;
+  height: 22px;
+  box-sizing: border-box;
+  background: var(--paper);
+  box-shadow: var(--pixel-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  animation: bob 0.8s steps(1) infinite;
+}
+
+/* stepped tail pointing to the hen's head (pixels built in renderer.js) */
+.bubble .tail {
+  position: absolute;
+  top: 100%;
+}
+
+.bubble .tail-down {
+  left: 8px;
+}
+
+.bubble .tail-left {
+  left: 2px;
+}
+
+.bubble .tail-right {
+  right: 2px;
+}
+
+/* "done" just waits for the next prompt: no bobbing */
+.bubble.state-done {
+  animation: none;
+}
+
+/* pixel glyphs (! ? ✗ ✓ +N) and tails: small canvases from renderer.js, scaled 2x */
+.bubble canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+
+@keyframes bob {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Sleeping: z Z z rising one after another */
+
+#zzz {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 34px;
+  height: 36px;
+  pointer-events: none;
+}
+
+/* the Zs are pixel art (canvases from renderer.js): the font's Z looks like an 8 */
+#zzz canvas {
+  position: absolute;
+  bottom: 0;
+  opacity: 0;
+  image-rendering: pixelated;
+  animation: zzz 3s steps(6) infinite;
+}
+
+#zzz canvas:nth-child(1) {
+  left: 0;
+}
+
+#zzz canvas:nth-child(2) {
+  left: 10px;
+  animation-delay: 1s;
+}
+
+#zzz canvas:nth-child(3) {
+  left: 24px;
+  animation-delay: 2s;
+}
+
+@keyframes zzz {
+  0% {
+    transform: translateY(0);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-24px);
+    opacity: 0;
+  }
+}
+
+/* Panel */
+
+#panel {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 300px;
+  max-height: 200px;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 6px;
+  background: var(--paper);
+  color: var(--text);
+  box-shadow:
+    var(--pixel-border),
+    6px 6px 0 0 rgba(0, 0, 0, 0.25);
+  font-size: 14px;
+  line-height: 1.15;
+  scrollbar-width: thin;
+  scrollbar-color: var(--ink) var(--paper-dark);
+}
+
+.title {
+  padding: 2px 6px 6px;
+  font-weight: 700;
+  border-bottom: 2px solid var(--paper-dark);
+  margin-bottom: 4px;
+}
+
+.row {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 6px;
+  cursor: pointer;
+}
+
+.row:hover {
+  background: var(--paper-dark);
+}
+
+.dot {
+  flex: none;
+  width: 8px;
+  height: 8px;
+  margin-top: 4px;
+  background: var(--gray);
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.dot.attention,
+.dot.error {
+  background: var(--red);
+}
+
+.dot.question {
+  background: var(--blue);
+}
+
+.dot.done {
+  background: var(--green);
+}
+
+/* working: the square keeps changing colour, so you see something is going on. The colours
+   avoid red/blue/green, which mean "needs you". */
+.dot.working {
+  animation: working 1.6s steps(1) infinite;
+}
+
+@keyframes working {
+  0% {
+    background: #9b59b6;
+  }
+  25% {
+    background: #16a8a0;
+  }
+  50% {
+    background: #e67e22;
+  }
+  75% {
+    background: #e84393;
+  }
+}
+
+.text {
+  min-width: 0;
+}
+
+.project {
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.message {
+  color: var(--muted);
+}
+
+.ago {
+  margin-left: auto;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.footer {
+  padding: 6px 6px 2px;
+  text-align: right;
+}
+
+.footer button {
+  border: 0;
+  padding: 2px 6px;
+  background: var(--paper-dark);
+  color: var(--text);
+  box-shadow: var(--pixel-border);
+  font: inherit;
+  cursor: pointer;
+}
+
+.footer button:hover {
+  background: var(--ink);
+  color: var(--paper);
+}
