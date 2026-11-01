@@ -15,7 +15,8 @@
   // bigger than the chicken without dwarfing it (halve: true would scale them down to its pixels).
   const ANIMALS = {
     chicken: { label: 'Huhn', sheet: 'chicken_walk.png', frame: 32, size: 1, canFly: true },
-    cow: { label: 'Kuh', sheet: 'cow_walk.png', frame: 128, size: 0.75 },
+    // lieHigher: lying, the belly ends this many rows above where the legs part (hides the udder)
+    cow: { label: 'Kuh', sheet: 'cow_walk.png', frame: 128, size: 0.75, lieHigher: 3 },
     pig: { label: 'Schwein', sheet: 'pig_walk.png', frame: 128, size: 0.75 },
     sheep: { label: 'Schaf', sheet: 'sheep_walk.png', frame: 128, size: 0.75 },
     llama: { label: 'Lama', sheet: 'llama_walk.png', frame: 128, size: 0.75 },
@@ -174,6 +175,34 @@
     let y = bottomRow(f);
     while (y > 0 && widths[y] < max * 0.35) y--;
     return y + 1;
+  }
+
+  /**
+   * Bottom of the belly of a four-legged animal in side view: the first row below the middle with a
+   * gap between front and back legs (the udder hangs in the gap, it is cut too). null if none.
+   */
+  function bellyBottom(f) {
+    const box = bbox([f]);
+    const minGap = Math.max(3, Math.round((box.x1 - box.x0) * 0.08));
+    for (let y = Math.round((box.y0 + box.y1) / 2); y <= box.y1; y++) {
+      const xs = [];
+      for (let x = box.x0; x <= box.x1; x++) if (opaque(f, x, y)) xs.push(x);
+      for (let i = 1; i < xs.length; i++) if (xs[i] - xs[i - 1] - 1 >= minGap) return y;
+    }
+    return null;
+  }
+
+  /** Closes the body at a cut: the lowest pixel of every column becomes outline. */
+  function outlineBottom(f, ink) {
+    const out = clone(f);
+    for (let x = 0; x < f.w; x++) {
+      for (let y = f.h - 1; y >= 0; y--) {
+        if (!opaque(f, x, y)) continue;
+        set(out, x, y, ink);
+        break;
+      }
+    }
+    return out;
   }
 
   /** Head of a left-facing frame: top of the front third → { x, y } (centre x, top y). */
@@ -433,11 +462,23 @@
     if (a.canFly) front = lowerFrontTail(shadeBackground(front, m(CHICKEN.frontTailBottom) + frontShift));
 
     const stand = walk[0];
-    const top = legTop(stand);
+    // the chicken's legs are thin rows below the body; four-legged animals lie on their belly
+    const belly = !a.canFly && bellyBottom(stand);
+    const top = belly ? belly - (a.lieHigher || 0) : legTop(stand);
     const settle = ground - (top - 1); // lying: body bottom onto the ground
 
     // poses on the uncropped frame
-    const sleepy = closeEyes(stand, eye(stand));
+    let sleepy = closeEyes(stand, eye(stand));
+    if (!a.canFly) {
+      // without legs the body needs an outline at its new bottom (colour of the back's outline)
+      const box = bbox([stand]);
+      const back = Math.round((box.x0 + box.x1) / 2);
+      let y = 0;
+      while (y < stand.h && !opaque(stand, back, y)) y++;
+      const cut = blank(stand.w, stand.h);
+      paste(cut, sleepy, 0, 0, (x, yy) => yy < top);
+      sleepy = outlineBottom(cut, rgb(stand, back, y));
+    }
     const sleep = [0, 1].map((breath) => {
       const f = blank(stand.w, stand.h);
       const chest = Math.round((head(stand).y + top) / 2);
