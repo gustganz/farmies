@@ -188,24 +188,17 @@ body {
   padding-bottom: 16px;
 }
 
-/* z Z z, rising a little like the sleeping animal's */
+/* zZz in front of the header text */
 .head-zzz {
   display: inline-flex;
   align-items: flex-end;
   gap: 2px;
   margin-right: 2px;
+  vertical-align: -1px;
 }
 
 .head-zzz canvas {
   image-rendering: pixelated;
-}
-
-.head-zzz canvas:nth-child(2) {
-  margin-bottom: 3px;
-}
-
-.head-zzz canvas:nth-child(3) {
-  margin-bottom: 8px;
 }
 
 .voice {

@@ -465,10 +465,11 @@ function header() {
   } else if (working) {
     head.append(el('b', '', 'Alles ruhig.'), document.createTextNode(working === 1 ? ' Eine arbeitet noch' : ` ${working} arbeiten noch`));
   } else {
-    // z Z z as pixel art like the sleeping animal's (the font's capital Z looks like an 8)
+    // zZz as pixel art, on one line (the font's capital Z looks like an 8)
     const zzz = el('span', 'head-zzz');
     zzz.append(...[Z_SMALL, Z_BIG, Z_SMALL].map((z) => pixelArt('', z, { '#': Bubbles.INK })));
-    head.append(zzz, document.createTextNode(sessions.length ? ' alle schlafen' : ' keine Sessions'));
+    const n = sessions.length;
+    head.append(zzz, document.createTextNode(n ? ` Alles erledigt · ${n === 1 ? '1 Session' : `${n} Sessions`} bereit` : ' Keine aktiven Sessions'));
     head.classList.toggle('empty', !sessions.length);
   }
   return head;
@@ -524,7 +525,7 @@ function showDetails(id) {
     return;
   }
   if (!s && !sessions.length) {
-    meadowBox.append(el('div', 'm-hint m-update', 'Die Weide ist leer.'), el('div', 'm-hint', 'Starte Claude, die Herde kommt.'));
+    meadowBox.append(el('div', 'm-hint', 'Sobald Claude Code läuft,'), el('div', 'm-hint', 'erscheint die Session hier.'));
     return;
   }
   if (!s) {
