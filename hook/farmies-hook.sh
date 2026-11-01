@@ -101,13 +101,17 @@ set_title() {
 write_state() {
   mkdir -p "$BUDDY_DIR" || return 0
   tmp="$BUDDY_DIR/.$sid.tmp"
-  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","ts":%s}\n' \
+  # transcript: the app treats a question/permission as handled when the transcript changes later
+  # (cancelling a question in Claude fires no hook)
+  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","transcript":"%s","ts":%s}\n' \
     "$sid" "$event" "$cwd" "$(esc "$folder")" "$message" "$ntype" "$term" "$(esc "$app")" "$(esc "$tty")" \
-    "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
+    "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
 }
 
 # PreToolUse is only registered for AskUserQuestion: Claude asks the user a question.
 [ "$event" = PreToolUse ] && event=Question
+# a failed or denied tool call also means the session went on
+[ "$event" = PostToolUseFailure ] && event=PostToolUse
 
 case "$event" in
   Notification | PermissionRequest | Stop | Question | StopFailure)
