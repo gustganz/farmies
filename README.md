@@ -88,9 +88,10 @@ nicht das Claude-Panel).
 Release (baut Windows und macOS auf GitHub Actions, `.github/workflows/release.yml`):
 
 1. `version` in `package.json` erhöhen, committen
-2. Tag setzen und pushen: `git tag v0.2.0 && git push origin main v0.2.0`
+2. nach `main` pushen: `git push origin main`
 
-Der Workflow prüft, dass Tag und Version passen, lässt die Tests laufen und hängt
+Gibt es zur Version noch kein Release, legt der Workflow es samt Tag `v<version>` auf GitHub an (ein
+Tag-Push ist nicht nötig, geht aber weiterhin). Er lässt die Tests laufen und hängt
 `Farmies-<version>-portable.exe` und `Farmies-<version>-mac-{arm64,x64}.zip` ans Release. Die laufenden
 Apps finden es von selbst (`src/updater.js`).
 

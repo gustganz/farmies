@@ -37,9 +37,11 @@ Feature overview, usage and release steps: README.md.
 
 ## Releases
 
-Bump `version` in package.json, commit, `git tag vX.Y.Z && git push origin main vX.Y.Z`. The release
-workflow builds, start-tests and publishes; installed apps update themselves. Publishing is public:
-only release when Gust asks for it.
+Bump `version` in package.json, commit, push to main: that is the release. `release.yml` sees a version
+without a release, builds, start-tests and publishes; the release (and the tag vX.Y.Z) is created on
+GitHub with the workflow token, so no tag push is needed (cloud sessions get 403 on tag pushes).
+Pushing a matching tag by hand still works. Installed apps update themselves. Publishing is public:
+only bump the version on main after Gust's OK for the release.
 
 ## Rules learned the hard way
 
@@ -58,7 +60,8 @@ only release when Gust asks for it.
 
 `[TASK] short lowercase description` (or `[BUGFIX]`), blank line, short English explanation. No ticket
 number, no Co-Authored-By trailer. Commit and push only when asked.
-No pull requests: test on a separate branch (CI start tests), then push to main after Gust's OK.
+Always develop on a work branch, never directly on main. Push the branch (CI start tests), then
+merge it into main without a pull request after Gust's OK. No pull requests.
 
 ## Open points
 
