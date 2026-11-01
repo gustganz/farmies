@@ -53,4 +53,4 @@ function trayIcon(nativeImage) {
   return image;
 }
 
-module.exports = { trayIcon, BARN };
+module.exports = { trayIcon, BARN, COLORS };
