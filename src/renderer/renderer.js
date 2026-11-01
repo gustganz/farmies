@@ -524,7 +524,10 @@ function showDetails(id) {
     return;
   }
   const l1 = el('div', 'm-l1');
-  l1.append(el('b', 'm-name', s.project), el('span', `m-state m-state-${s.state}`, STATE_WORD[s.state] || STATE_WORD.idle), el('span', 'm-when', ago(s.ts)));
+  // the name is on the hovered tag already: here its state, Claude's name for the session (or where
+  // it runs) and the time
+  const where = s.title && s.title !== s.task ? s.title : `in ${termName(s)}`;
+  l1.append(el('span', `m-state m-state-${s.state}`, STATE_WORD[s.state] || STATE_WORD.idle), el('span', 'm-where', where), el('span', 'm-when', ago(s.ts)));
   const l3 = el('div', 'm-last');
   if (s.branch) {
     const br = el('span', 'm-branch');
