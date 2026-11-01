@@ -46,11 +46,13 @@ function saveSettings() {
   }
 }
 
-// Set FARMIES_DEBUG=1 to log window moves to <userData>/debug.log.
+// Set FARMIES_DEBUG=1 to log window moves and errors to <userData>/debug.log (the start test,
+// scripts/smoke.js, fails on lines starting with "error").
 function debugLog(...args) {
   if (!process.env.FARMIES_DEBUG) return;
   fs.appendFileSync(path.join(app.getPath('userData'), 'debug.log'), `${args.join(' ')}\n`);
 }
+if (process.env.FARMIES_DEBUG) process.on('uncaughtException', (e) => debugLog('error main', e.stack || e));
 
 function sendDisplays() {
   const displays = screen.getAllDisplays().map((d) => ({ id: d.id, bounds: d.bounds, workArea: d.workArea }));
@@ -98,6 +100,14 @@ function createWindow() {
   keepOnTop();
   // Click-through everywhere except where the renderer reports the buddy/bubble/panel.
   win.setIgnoreMouseEvents(true, { forward: true });
+  if (process.env.FARMIES_DEBUG) {
+    win.webContents.on('console-message', (e, level, message) => {
+      // Electron passes the details as event properties (older versions as arguments)
+      if ((e.level ?? level) === 'error' || level === 3) debugLog('error renderer', e.message ?? message);
+    });
+    win.webContents.on('render-process-gone', (_e, d) => debugLog('error renderer gone', d.reason));
+    win.webContents.on('preload-error', (_e, file, err) => debugLog('error preload', file, err.stack || err));
+  }
   win.loadFile(path.join(__dirname, 'renderer', 'index.html'));
   win.once('ready-to-show', () => win.showInactive());
 }

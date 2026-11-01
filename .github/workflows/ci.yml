@@ -1,0 +1,52 @@
+# On every push and pull request: unit tests, and a start test of the packaged app on a real
+# macOS and Windows machine (scripts/smoke.js). The snapshots are attached to the run.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm test
+
+  start:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: --mac
+          - os: windows-latest
+            target: --win
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run ext && npm run icon
+      - name: Build (unpacked)
+        run: npx electron-builder ${{ matrix.target }} --dir --publish never
+      - name: Start test
+        run: node scripts/smoke.js
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: snapshot-${{ matrix.os }}
+          path: dist/smoke-*.png
+          if-no-files-found: ignore
