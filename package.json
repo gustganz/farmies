@@ -1,7 +1,7 @@
 {
   "name": "farmies",
   "productName": "Farmies",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "private": true,
   "description": "Pixel farm animals that tell you when a Claude Code session needs you",
   "author": "gustganz",
