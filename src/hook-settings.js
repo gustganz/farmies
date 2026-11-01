@@ -7,6 +7,7 @@ const EVENTS = [
   'UserPromptSubmit',
   'PreToolUse',
   'PostToolUse',
+  'PostToolUseFailure',
   'PermissionRequest',
   'Notification',
   'Stop',
@@ -14,7 +15,7 @@ const EVENTS = [
   'SessionEnd',
 ];
 // Tool events: PreToolUse only for questions to the user, PostToolUse for every tool.
-const MATCHERS = { PreToolUse: 'AskUserQuestion', PostToolUse: '*' };
+const MATCHERS = { PreToolUse: 'AskUserQuestion', PostToolUse: '*', PostToolUseFailure: '*' };
 const MARKER = 'farmies';
 
 function read(file) {
