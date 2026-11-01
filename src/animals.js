@@ -181,18 +181,25 @@
   const hexColor = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16)).concat(255);
 
   /**
-   * Breathing out while asleep: the back (behind the head, the upper part of the body) sinks by a
-   * pixel; the head stays.
+   * Breathing while asleep, the second frame: the chest (`chest`, frame coordinates) swells forward
+   * by a pixel, or else the back (behind the head, the upper part of the body) sinks by a pixel; the
+   * head stays.
    */
-  function breathe(f) {
+  function breathe(f, chest) {
+    if (chest) {
+      const [x0, y0, x1, y1] = chest;
+      const out = clone(f);
+      paste(out, f, -1, 0, (x, y) => x >= x0 && x <= x1 && y >= y0 && y <= y1);
+      return out;
+    }
     const box = bbox([f]);
     const backX = box.x0 + Math.round((box.x1 - box.x0) * 0.35);
     let backTop = box.y1;
     for (let x = backX; x <= box.x1; x++) for (let y = box.y0; y < backTop; y++) if (opaque(f, x, y)) backTop = y;
-    const chest = backTop + Math.round((box.y1 - backTop) * 0.4);
+    const lower = backTop + Math.round((box.y1 - backTop) * 0.4);
     const out = blank(f.w, f.h);
-    paste(out, f, 0, 0, (x, y) => x < backX || y >= chest);
-    paste(out, f, 0, 1, (x, y) => x >= backX && y < chest);
+    paste(out, f, 0, 0, (x, y) => x < backX || y >= lower);
+    paste(out, f, 0, 1, (x, y) => x >= backX && y < lower);
     return out;
   }
 
@@ -428,7 +435,9 @@
     };
     const lie = pose(lying.lie);
     const asleep = pose(lying.sleep);
-    const sleep = [asleep, breathe(asleep)];
+    const top = ground - lying.sleep.length + 1;
+    const chest = lying.chest && [lying.chest[0] + standX + lying.dx, lying.chest[1] + top, lying.chest[2] + standX + lying.dx, lying.chest[3] + top];
+    const sleep = [asleep, breathe(asleep, chest)];
 
     // Held up: front view, legs kicking (pulled in by turns); the chicken also flaps its wings.
     const frontTop = legTop(front);

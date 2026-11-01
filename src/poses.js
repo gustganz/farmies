@@ -2,7 +2,8 @@
 // and "sleep" (eyes closed). Drawn after the user's reference on top of the LPC sprites (CC-BY 3.0,
 // see assets/CREDITS.md) and reduced to each animal's own colours. Left-facing, rows top to bottom,
 // '.' transparent. dx: left edge relative to the standing frame's left edge; the bottom row stands on
-// the ground line. Shared by the renderer (script tag) and node.
+// the ground line. chest: [x0, y0, x1, y1] in the sleep rows, the part that breathes (moves forward
+// and back); without it the back rises and sinks. Shared by the renderer (script tag) and node.
 (function (root) {
   'use strict';
 
@@ -291,6 +292,7 @@
     },
     chicken: {
       dx: 1,
+      chest: [0, 11, 9, 15],
       palette: { a: '#222121', b: '#5c1f1a', c: '#3a3737', d: '#9e3e37', e: '#c84141', f: '#827c7c', g: '#b7b3b2', h: '#efe9e7', i: '#a6a2a1', j: '#cf7b49', k: '#746e6e' },
       lie: [
         '...abbcca',
