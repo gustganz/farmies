@@ -36,7 +36,8 @@ test('check: no release yet or offline changes nothing', async () => {
   await u.check();
   assert.strictEqual(u.update, null);
   const offline = new Updater({ app: fakeApp('0.1.0'), net: { fetch: async () => { throw new Error('offline'); } } });
-  await offline.check();
+  await assert.rejects(offline.check(), /offline/);
+  offline.checkQuietly(); // regular checks swallow it
   assert.strictEqual(offline.update, null);
 });
 

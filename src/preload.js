@@ -6,6 +6,7 @@ contextBridge.exposeInMainWorld('buddyApi', {
   focusSession: (id) => ipcRenderer.send('focus-session', id),
   dismissAll: () => ipcRenderer.send('dismiss-all'),
   installUpdate: () => ipcRenderer.send('install-update'),
+  showMenu: () => ipcRenderer.send('show-menu'),
   onUpdate: (cb) => ipcRenderer.on('update', (_e, u) => cb(u)),
   savePosition: (pos) => ipcRenderer.send('position', pos),
   onSessions: (cb) => ipcRenderer.on('sessions', (_e, list) => cb(list)),

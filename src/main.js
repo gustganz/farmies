@@ -142,9 +142,14 @@ function showAbout() {
 }
 
 function updateTray() {
-  const pending = sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state)).length;
+  const pending = pendingCount();
   const hookInfo = hookStatus && !hookStatus.ok ? ` · Hooks: ${hookStatus.reason}` : '';
   tray.setToolTip((pending ? `Farmies – ${pending} wartet auf dich` : 'Farmies') + hookInfo);
+  tray.setContextMenu(buildMenu(pending));
+}
+
+/** The menu of the tray icon, also shown on a right click on the animal. */
+function buildMenu(pending) {
   const update = updater.update;
   // Items are left out rather than hidden: Windows still draws hidden items as empty space.
   const updateItems = update
@@ -159,62 +164,90 @@ function updateTray() {
         },
       ]
     : [];
-  tray.setContextMenu(
-    Menu.buildFromTemplate([
-      // heading: name and version
-      { label: `Farmies ${app.getVersion()}`, enabled: false },
-      ...updateItems,
-      { type: 'separator' },
-      {
-        label: 'Tier',
-        submenu: Object.entries(Animals.ANIMALS).map(([id, a]) => ({
-          label: a.label,
-          type: 'radio',
-          checked: currentAnimal() === id,
-          click: () => setAnimal(id),
-        })),
+  return Menu.buildFromTemplate([
+    // heading: name and version
+    { label: `Farmies ${app.getVersion()}`, enabled: false },
+    ...updateItems,
+    { label: 'Nach Updates suchen', click: checkForUpdates },
+    { type: 'separator' },
+    {
+      label: 'Tier',
+      submenu: Object.entries(Animals.ANIMALS).map(([id, a]) => ({
+        label: a.label,
+        type: 'radio',
+        checked: currentAnimal() === id,
+        click: () => setAnimal(id),
+      })),
+    },
+    {
+      label: 'Größe',
+      submenu: SIZES.map(([value, label]) => ({
+        label,
+        type: 'radio',
+        checked: currentScale() === value,
+        click: () => setScale(value),
+      })),
+    },
+    { type: 'separator' },
+    { label: 'Alle als gesehen markieren', enabled: pending > 0, click: () => sessions.dismissAll() },
+    {
+      label: 'Ausblenden',
+      type: 'checkbox',
+      checked: !win?.isVisible(),
+      click: (item) => {
+        if (item.checked) win.hide();
+        else win.showInactive();
       },
-      {
-        label: 'Größe',
-        submenu: SIZES.map(([value, label]) => ({
-          label,
-          type: 'radio',
-          checked: currentScale() === value,
-          click: () => setScale(value),
-        })),
-      },
-      { type: 'separator' },
-      { label: 'Alle als gesehen markieren', enabled: pending > 0, click: () => sessions.dismissAll() },
-      {
-        label: 'Ausblenden',
-        type: 'checkbox',
-        checked: !win?.isVisible(),
-        click: (item) => {
-          if (item.checked) win.hide();
-          else win.showInactive();
-        },
-      },
-      { type: 'separator' },
-      ...(autostart.supported()
-        ? [
-            {
-              label: 'Beim Login starten',
-              type: 'checkbox',
-              checked: autostart.isEnabled(),
-              click: (item) => {
-                settings.autostart = item.checked;
-                saveSettings();
-                autostart.setEnabled(item.checked);
-              },
+    },
+    { type: 'separator' },
+    ...(autostart.supported()
+      ? [
+          {
+            label: 'Beim Login starten',
+            type: 'checkbox',
+            checked: autostart.isEnabled(),
+            click: (item) => {
+              settings.autostart = item.checked;
+              saveSettings();
+              autostart.setEnabled(item.checked);
             },
-            { type: 'separator' },
-          ]
-        : []),
-      { label: 'Über Farmies', click: showAbout },
-      { label: 'Deinstallieren…', click: confirmUninstall },
-      { label: 'Beenden', click: () => app.quit() },
-    ]),
-  );
+          },
+          { type: 'separator' },
+        ]
+      : []),
+    { label: 'Über Farmies', click: showAbout },
+    { label: 'Deinstallieren…', click: confirmUninstall },
+    { label: 'Beenden', click: () => app.quit() },
+  ]);
+}
+
+const pendingCount = () => sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state)).length;
+
+// "Nach Updates suchen" in the menu: like the regular check, but always with an answer
+async function checkForUpdates() {
+  let update;
+  try {
+    update = await updater.check();
+  } catch (e) {
+    dialog.showMessageBox({ type: 'warning', title: 'Farmies', message: 'Update-Prüfung fehlgeschlagen', detail: e.message });
+    return;
+  }
+  if (!update) {
+    dialog.showMessageBox({ type: 'info', title: 'Farmies', message: `Farmies ${app.getVersion()} ist aktuell.` });
+    return;
+  }
+  const { response } = await dialog.showMessageBox({
+    type: 'info',
+    title: 'Farmies',
+    message: `Farmies ${update.version} ist da (du hast ${app.getVersion()}).`,
+    detail: update.installable
+      ? 'Installieren lädt das Update, tauscht die App aus und startet sie neu.'
+      : 'Öffnet die Download-Seite.',
+    buttons: ['Installieren', 'Später'],
+    defaultId: 0,
+    cancelId: 1,
+  });
+  if (response === 0) updater.install();
 }
 
 async function confirmUninstall() {
@@ -350,6 +383,7 @@ acquireLock().then((locked) => {
     });
     ipcMain.on('dismiss-all', () => sessions.dismissAll());
     ipcMain.on('install-update', () => updater.install());
+    ipcMain.on('show-menu', () => buildMenu(pendingCount()).popup({ window: win }));
     ipcMain.on('position', (_e, position) => {
       settings.position = position;
       saveSettings();

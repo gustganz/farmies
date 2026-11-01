@@ -529,6 +529,11 @@ function endDrag() {
   else onBuddyClick();
 }
 buddyEl.addEventListener('pointerup', endDrag);
+// right click: the tray icon's menu
+buddyEl.addEventListener('contextmenu', (e) => {
+  e.preventDefault();
+  buddyApi.showMenu();
+});
 buddyEl.addEventListener('pointercancel', endDrag);
 
 // --- wiring ------------------------------------------------------------------------------------
