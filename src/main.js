@@ -76,7 +76,6 @@ function moveWindow(x, y) {
 function keepOnTop() {
   if (!win) return;
   win.setAlwaysOnTop(true, 'screen-saver');
-  if (process.platform === 'darwin') win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
 }
 
 function createWindow() {
@@ -98,6 +97,11 @@ function createWindow() {
   const { workArea } = screen.getPrimaryDisplay();
   moveWindow(workArea.x + workArea.width / 2 - WIN_W / 2, workArea.y + workArea.height - WIN_H);
   keepOnTop();
+  // once only: without skipTransformProcessType every call hides the window and dock for a moment
+  // (the app is a UI element already: LSUIElement, dock.hide)
+  if (process.platform === 'darwin') {
+    win.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true, skipTransformProcessType: true });
+  }
   // Click-through everywhere except where the renderer reports the buddy/bubble/panel.
   win.setIgnoreMouseEvents(true, { forward: true });
   if (process.env.FARMIES_DEBUG) {
@@ -138,8 +142,15 @@ function setScale(value) {
   updateTray();
 }
 
+// macOS: the app never becomes active by itself (menu bar app), so its dialogs would open behind
+// other windows
+function showMessageBox(options) {
+  if (process.platform === 'darwin') app.focus({ steal: true });
+  return dialog.showMessageBox(options);
+}
+
 function showAbout() {
-  dialog.showMessageBox({
+  showMessageBox({
     type: 'info',
     title: 'Über Farmies',
     message: `Farmies ${app.getVersion()}`,
@@ -239,14 +250,14 @@ async function checkForUpdates() {
   try {
     update = await updater.check();
   } catch (e) {
-    dialog.showMessageBox({ type: 'warning', title: 'Farmies', message: 'Update-Prüfung fehlgeschlagen', detail: e.message });
+    showMessageBox({ type: 'warning', title: 'Farmies', message: 'Update-Prüfung fehlgeschlagen', detail: e.message });
     return;
   }
   if (!update) {
-    dialog.showMessageBox({ type: 'info', title: 'Farmies', message: `Farmies ${app.getVersion()} ist aktuell.` });
+    showMessageBox({ type: 'info', title: 'Farmies', message: `Farmies ${app.getVersion()} ist aktuell.` });
     return;
   }
-  const { response } = await dialog.showMessageBox({
+  const { response } = await showMessageBox({
     type: 'info',
     title: 'Farmies',
     message: `Farmies ${update.version} ist da (du hast ${app.getVersion()}).`,
@@ -261,7 +272,7 @@ async function checkForUpdates() {
 }
 
 async function confirmUninstall() {
-  const { response } = await dialog.showMessageBox({
+  const { response } = await showMessageBox({
     type: 'question',
     title: 'Farmies deinstallieren',
     message: 'Farmies deinstallieren?',
@@ -292,7 +303,7 @@ async function confirmUninstall() {
   if (result) lines.push(`${result.removedHooks} Hook(s) entfernt aus ${result.settingsFile}.`);
   lines.push(...problems);
   lines.push('Laufende Claude-Code-Sessions neu starten, damit die Hooks nicht mehr geladen sind.');
-  await dialog.showMessageBox({
+  await showMessageBox({
     type: problems.length ? 'warning' : 'info',
     title: 'Farmies',
     message: problems.length ? 'Deinstallation mit Problemen' : 'Farmies wurde deinstalliert',
