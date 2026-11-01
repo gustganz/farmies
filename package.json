@@ -65,7 +65,8 @@
       "category": "public.app-category.developer-tools",
       "identity": "-",
       "extendInfo": {
-        "LSUIElement": true
+        "LSUIElement": true,
+        "NSAppleEventsUsageDescription": "Farmies holt das Terminal-Fenster der Claude-Code-Session nach vorne."
       },
       "artifactName": "Farmies-${version}-mac-${arch}.${ext}"
     }

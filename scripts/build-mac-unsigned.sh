@@ -14,7 +14,8 @@ rm -rf "$out"
 cat >build/Info-extra.plist <<'EOF'
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0"><dict><key>LSUIElement</key><true/></dict></plist>
+<plist version="1.0"><dict><key>LSUIElement</key><true/>
+<key>NSAppleEventsUsageDescription</key><string>Farmies holt das Terminal-Fenster der Claude-Code-Session nach vorne.</string></dict></plist>
 EOF
 
 npx @electron/packager . "Farmies" --platform=darwin --arch=arm64,x64 --asar --overwrite \

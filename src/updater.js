@@ -160,6 +160,14 @@ class Updater extends EventEmitter {
     // …/Farmies.app/Contents/MacOS/Farmies → …/Farmies.app
     const bundle = path.resolve(process.execPath, '..', '..', '..');
     if (!bundle.endsWith('.app')) throw new Error(`Unerwarteter App-Pfad: ${bundle}`);
+    // The swap script moves the bundle; without write access it would fail silently and start the
+    // old version again. Started from a quarantined download, macOS runs a read-only copy.
+    if (bundle.includes('/AppTranslocation/')) throw new Error('App erst nach Programme ziehen und freischalten (README)');
+    try {
+      fs.accessSync(path.dirname(bundle), fs.constants.W_OK);
+    } catch {
+      throw new Error(`keine Schreibrechte in ${path.dirname(bundle)}`);
+    }
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-update-'));
     const zip = path.join(tmp, u.asset.name);
     await this.download(u.asset, zip);
