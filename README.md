@@ -21,13 +21,13 @@ Bescheid geben, wenn eine Claude-Code-Session dich braucht. Standard ist das Huh
   - Cursor, VS Code, Windsurf: das Fenster und dort das Terminal der Session (Begleit-Erweiterung, wird
     automatisch installiert); JetBrains: das Fenster
   - macOS: Terminal.app und iTerm über das TTY, sonst die App der Session
-- **Tray-Icon** (Bauernhaus): Tier, Größe, alle als gesehen markieren, ausblenden, „Beim Login starten“,
+- **Tray-Icon** (Bauernhaus) bzw. **Rechtsklick aufs Tier**: Tier, Größe, alle als gesehen markieren, ausblenden, „Beim Login starten“,
   über Farmies, deinstallieren, beenden.
-- **Updates**: die App schaut beim Start und alle 6 Stunden nach einem neuen
+- **Updates**: die App schaut kurz nach dem Start und dann stündlich nach einem neuen
   [GitHub-Release](https://github.com/gustganz/farmies/releases). Gibt es eins, zeigt das Tier eine orange
   **NEW**-Blase (immer, zusätzlich zu den Session-Blasen) und das Panel einen Eintrag. Klick darauf lädt das
   Update (Fortschritt in der Blase), tauscht die App aus und startet sie neu. Einstellungen, Position des Tiers
-  und als gesehen markierte Sessions bleiben erhalten.
+  und als gesehen markierte Sessions bleiben erhalten. Sofort prüfen: Menü → *Nach Updates suchen*.
 - **Autostart**: ab dem ersten Start aktiv. Windows: Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (Eintrag `com.gustganz.farmies`), macOS: `~/Library/LaunchAgents/com.gustganz.farmies.plist`. Abschalten über das Tray-Menü.
 

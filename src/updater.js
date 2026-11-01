@@ -11,7 +11,7 @@ const path = require('path');
 const { LATEST_URL, updateFrom } = require('./releases');
 
 const FIRST_CHECK_MS = 15 * 1000;
-const CHECK_INTERVAL_MS = 6 * 3600 * 1000;
+const CHECK_INTERVAL_MS = 3600 * 1000;
 
 const run = (cmd, args) =>
   new Promise((resolve, reject) =>
@@ -67,26 +67,29 @@ class Updater extends EventEmitter {
   }
 
   start() {
-    setTimeout(() => this.check(), FIRST_CHECK_MS);
-    setInterval(() => this.check(), CHECK_INTERVAL_MS);
+    setTimeout(() => this.checkQuietly(), FIRST_CHECK_MS);
+    setInterval(() => this.checkQuietly(), CHECK_INTERVAL_MS);
   }
 
+  /** → the available update or null; throws if GitHub could not be asked (offline, rate limit). */
   async check() {
-    if (this.update && this.update.status === 'downloading') return;
-    try {
-      const res = await this.net.fetch(LATEST_URL, { headers: { Accept: 'application/vnd.github+json' } });
-      if (res.status === 404) return; // no release yet
-      if (!res.ok) throw new Error(`GitHub: HTTP ${res.status}`);
-      const found = updateFrom(await res.json(), this.app.getVersion(), process.platform, process.arch);
-      if (!found) {
-        this.set(null);
-      } else if (!this.update || this.update.version !== found.version) {
-        // unpackaged (development) or no file for this platform: the click opens the release page
-        this.set({ ...found, installable: !!found.asset && this.app.isPackaged, status: 'available', progress: 0 });
-      }
-    } catch {
-      // offline or rate limited: try again later
+    if (this.update && this.update.status === 'downloading') return this.update;
+    const res = await this.net.fetch(LATEST_URL, { headers: { Accept: 'application/vnd.github+json' } });
+    if (res.status === 404) return null; // no release yet
+    if (!res.ok) throw new Error(`GitHub antwortet mit HTTP ${res.status}`);
+    const found = updateFrom(await res.json(), this.app.getVersion(), process.platform, process.arch);
+    if (!found) {
+      if (this.update) this.set(null);
+    } else if (!this.update || this.update.version !== found.version) {
+      // unpackaged (development) or no file for this platform: the click opens the release page
+      this.set({ ...found, installable: !!found.asset && this.app.isPackaged, status: 'available', progress: 0 });
     }
+    return this.update;
+  }
+
+  /** Regular checks: problems are ignored, the next check tries again. */
+  checkQuietly() {
+    this.check().catch(() => {});
   }
 
   set(update) {
