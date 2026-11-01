@@ -96,25 +96,53 @@
   };
   SIGN.rows = SIGN.gallows;
   const SIGN_BOX = { x: W - 4 - SIGN.gallows[0].length, y: H - 2 - SIGN.gallows.length, w: SIGN.gallows[0].length, h: SIGN.gallows.length };
-  // swing: the board moves a pixel to the side and back, slowly
-  const SWING = [0, 0, 1, 1, 1, 0, 0, -1, -1, -1];
-  const SWING_STEP = 0.45; // s per step
+  // swing: the board rocks on its chains like a pendulum, in pixel steps: it moves a pixel to the
+  // side and tilts (one half a pixel higher, the step falls between two letters), then back.
+  // [shift, tilt]: tilt 1 = right half higher (swinging right), -1 = left half higher
+  const SWING = [[0, 0], [1, 0], [1, 1], [1, 1], [1, 0], [0, 0], [-1, 0], [-1, -1], [-1, -1], [-1, 0]];
+  const SWING_STEP = 0.3; // s per step
+  const TILT_COL = 11; // first column of the right half (the gap between E and W)
 
   function drawSign(ctx, time) {
-    const px = (rows, x0, y0) => rows.forEach((line, dy) => [...line].forEach((ch, dx) => {
+    const { x, y } = SIGN_BOX;
+    SIGN.gallows.forEach((line, dy) => [...line].forEach((ch, dx) => {
       if (!SIGN.c[ch]) return;
       ctx.fillStyle = SIGN.c[ch];
-      ctx.fillRect(x0 + dx, y0 + dy, 1, 1);
+      ctx.fillRect(x + dx, y + dy, 1, 1);
     }));
-    const { x, y } = SIGN_BOX;
-    const sway = SWING[Math.floor(time / SWING_STEP) % SWING.length];
-    px(SIGN.gallows, x, y);
+    const [shift, tilt] = SWING[Math.floor(time / SWING_STEP) % SWING.length];
+    // vertical offset of a column: the higher half moves up a pixel
+    const lift = (col) => (tilt === 1 && col >= TILT_COL ? -1 : tilt === -1 && col < TILT_COL ? -1 : 0);
+    const top = y + SIGN.boardY + 1; // the board hangs a pixel lower, so it can tilt up
+    // The tilt moves only the board's edges (outline and highlight), the painted letters stay put:
+    // a 1 px step in the top and bottom edge reads as a tilt without breaking the letters.
+    const bh = SIGN.board.length;
+    const put = (ch, px, py) => {
+      ctx.fillStyle = SIGN.c[ch];
+      ctx.fillRect(px, py, 1, 1);
+    };
+    SIGN.board[0].split('').forEach((_, col) => {
+      const bx = x + shift + col;
+      const l = lift(col);
+      const side = col === 0 || col === SIGN.board[0].length - 1;
+      for (let row = 0; row < bh; row++) {
+        let ch = SIGN.board[row][col];
+        if (l && row === 1) ch = side ? 'o' : 'w'; // the highlight moved up with the edge
+        if (l && row === bh - 2) ch = 'o'; // bottom edge one higher
+        if (l && row === bh - 1) continue;
+        if (SIGN.c[ch]) put(ch, bx, top + row);
+      }
+      if (l) {
+        put('o', bx, top - 1); // top edge one higher
+        put(side ? 'o' : 'h', bx, top);
+      }
+    });
+    // chains from the arm down to the board, leaning with it
     ctx.fillStyle = SIGN.c.k;
     for (const cx of SIGN.chains) {
-      ctx.fillRect(x + cx, y + 3, 1, 1); // hooked to the arm
-      ctx.fillRect(x + cx + sway, y + 4, 1, 1); // follows the board
+      const end = top + lift(cx);
+      for (let cy = y + 3; cy < end; cy++) ctx.fillRect(x + cx + (cy >= end - 1 ? shift : 0), cy, 1, 1);
     }
-    px(SIGN.board, x + sway, y + SIGN.boardY);
   }
 
   // animals: two frames each, facing left (they come from the right)
