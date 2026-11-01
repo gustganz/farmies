@@ -120,6 +120,15 @@ case "$event" in
       [ "$(sed -n 4p "$ATTN_DIR/$sid" 2>/dev/null)" = Question ] && exit 0 ;;
     esac
     ntype=$(field notification_type)
+    # Only notifications that wait for the user count. Others leave the state as it is, above all
+    # idle_prompt ("waiting for your input"), which follows every Stop after a minute.
+    if [ "$event" = Notification ]; then
+      case "$ntype" in
+        permission_prompt | elicitation_dialog | elicitation_url_dialog | agent_needs_input) ;;
+        "") case "$(field message)" in *"waiting for your input"*) exit 0 ;; esac ;; # older Claude Code
+        *) exit 0 ;;
+      esac
+    fi
     detect_context
     write_state
     project=$(basename "$folder")
