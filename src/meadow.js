@@ -71,30 +71,51 @@
     snowball: { rows: ['.wwg.', 'wwwwg', 'wwwgg', '.ggg.'], c: { w: '#ffffff', g: '#b9c4cb' } },
   };
 
-  // A new Farmies version: a wooden signpost in the corner instead of the month's props, pointing to
-  // the text. Drawn 1:1 (finer than the props). Clicking it installs the update.
+  // A new Farmies version: a hanging sign (like an inn's) in the corner instead of the month's props,
+  // swinging gently on its chains. Drawn 1:1 (finer than the props). Clicking it installs the update.
+  const NEW_TEXT = ['#..#.###.#...#', '##.#.#...#...#', '#.##.###.#.#.#', '#..#.#...#.#.#', '#..#.###..#.#.'];
   const SIGN = {
-    c: { o: '#3b2414', w: '#d9a066', h: '#f0c891', r: '#5a2e12', p: '#8a5a2b' },
-    rows: [
-      '....ooooooooooooooooooo.',
-      '...ohhhhhhhhhhhhhhhhhhho',
-      '..owwwwwwwwwwwwwwwwwwwwo',
-      '.owww#..#.###.#...#wwwwo',
-      'owwww##.#.#...#...#wwwwo',
-      'owwww#.##.###.#.#.#wwwwo',
-      '.owww#..#.#...#.#.#wwwwo',
-      '..oww#..#.###..#.#.wwwwo',
-      '...owwwwwwwwwwwwwwwwwwwo',
-      '....oooooooooooooooooooo',
-      '..............opo.......',
-      '..............opo.......',
-      '..............opo.......',
-      '..............opo.......',
-      '..............opo.......',
-      '..............opo.......',
-    ].map((r) => r.replace(/#/g, 'r').replace(/(?<=w[r.]*)\.(?=[r.]*w)/g, 'w')),
+    c: { o: '#3b2414', w: '#e8c48a', h: '#f7dfb0', r: '#b8401a', p: '#8a5a2b', k: '#c9c3b2' },
+    // post on the right with the arm on top
+    gallows: [
+      'oooooooooooooooooooooooo',
+      'ppppppppppppppppppppppop',
+      'oooooooooooooooooooooopo',
+      ...Array.from({ length: 13 }, () => '.....................opo'),
+    ],
+    // the board, hanging from the arm on two chains (x 2 and 17)
+    board: [
+      'oooooooooooooooooooo',
+      'ohhhhhhhhhhhhhhhhhho',
+      ...NEW_TEXT.map((r) => `oww${r.replace(/#/g, 'r').replace(/\./g, 'w')}wwo`),
+      'owwwwwwwwwwwwwwwwwwo',
+      'oooooooooooooooooooo',
+    ],
+    chains: [2, 17],
+    boardY: 5,
   };
-  const SIGN_BOX = { x: W - 4 - SIGN.rows[0].length, y: H - 2 - SIGN.rows.length, w: SIGN.rows[0].length, h: SIGN.rows.length };
+  SIGN.rows = SIGN.gallows;
+  const SIGN_BOX = { x: W - 4 - SIGN.gallows[0].length, y: H - 2 - SIGN.gallows.length, w: SIGN.gallows[0].length, h: SIGN.gallows.length };
+  // swing: the board moves a pixel to the side and back, slowly
+  const SWING = [0, 0, 1, 1, 1, 0, 0, -1, -1, -1];
+  const SWING_STEP = 0.45; // s per step
+
+  function drawSign(ctx, time) {
+    const px = (rows, x0, y0) => rows.forEach((line, dy) => [...line].forEach((ch, dx) => {
+      if (!SIGN.c[ch]) return;
+      ctx.fillStyle = SIGN.c[ch];
+      ctx.fillRect(x0 + dx, y0 + dy, 1, 1);
+    }));
+    const { x, y } = SIGN_BOX;
+    const sway = SWING[Math.floor(time / SWING_STEP) % SWING.length];
+    px(SIGN.gallows, x, y);
+    ctx.fillStyle = SIGN.c.k;
+    for (const cx of SIGN.chains) {
+      ctx.fillRect(x + cx, y + 3, 1, 1); // hooked to the arm
+      ctx.fillRect(x + cx + sway, y + 4, 1, 1); // follows the board
+    }
+    px(SIGN.board, x + sway, y + SIGN.boardY);
+  }
 
   // animals: two frames each, facing left (they come from the right)
   const ANIMALS = {
@@ -129,7 +150,7 @@
     }));
   }
 
-  function drawGround(ctx, month, sign = false) {
+  function drawGround(ctx, month, sign = false, time = 0) {
     const m = MONTHS[month];
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = m.ground;
@@ -155,11 +176,7 @@
       for (let i = 0; i < 18; i++) ctx.fillRect(Math.floor(hash(i + 900) * W), EDGE + 2 + Math.floor(hash(i + 950) * (H - EDGE - 4)), 1, 1);
     }
     if (sign) {
-      SIGN.rows.forEach((line, dy) => [...line].forEach((ch, dx) => {
-        if (!SIGN.c[ch]) return;
-        ctx.fillStyle = SIGN.c[ch];
-        ctx.fillRect(SIGN_BOX.x + dx, SIGN_BOX.y + dy, 1, 1);
-      }));
+      drawSign(ctx, time);
       return;
     }
     // flowers, bottom right
@@ -195,7 +212,8 @@
       this.maxDelay = opts.maxDelay ?? 10800;
       this.a = { phase: 'away', wait: opts.firstDelay ?? 120 + Math.random() * 480 };
       this.mouse = null;
-      this.sign = false; // a new version: the signpost stands in the corner
+      this.sign = false; // a new version: the hanging sign stands in the corner
+      this.time = 0;
     }
 
     /** Whether a point (meadow pixels) is on the signpost. */
@@ -215,7 +233,7 @@
     }
 
     draw(ctx) {
-      drawGround(ctx, this.month, this.sign);
+      drawGround(ctx, this.month, this.sign, this.time);
       drawAnimal(ctx, this.a);
     }
 
@@ -229,6 +247,7 @@
     }
 
     step(dt) {
+      this.time += dt;
       const a = this.a;
       if (a.phase === 'away') {
         a.wait -= dt;
