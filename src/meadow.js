@@ -71,6 +71,31 @@
     snowball: { rows: ['.wwg.', 'wwwwg', 'wwwgg', '.ggg.'], c: { w: '#ffffff', g: '#b9c4cb' } },
   };
 
+  // A new Farmies version: a wooden signpost in the corner instead of the month's props, pointing to
+  // the text. Drawn 1:1 (finer than the props). Clicking it installs the update.
+  const SIGN = {
+    c: { o: '#3b2414', w: '#d9a066', h: '#f0c891', r: '#5a2e12', p: '#8a5a2b' },
+    rows: [
+      '....ooooooooooooooooooo.',
+      '...ohhhhhhhhhhhhhhhhhhho',
+      '..owwwwwwwwwwwwwwwwwwwwo',
+      '.owww#..#.###.#...#wwwwo',
+      'owwww##.#.#...#...#wwwwo',
+      'owwww#.##.###.#.#.#wwwwo',
+      '.owww#..#.#...#.#.#wwwwo',
+      '..oww#..#.###..#.#.wwwwo',
+      '...owwwwwwwwwwwwwwwwwwwo',
+      '....oooooooooooooooooooo',
+      '..............opo.......',
+      '..............opo.......',
+      '..............opo.......',
+      '..............opo.......',
+      '..............opo.......',
+      '..............opo.......',
+    ].map((r) => r.replace(/#/g, 'r').replace(/(?<=w[r.]*)\.(?=[r.]*w)/g, 'w')),
+  };
+  const SIGN_BOX = { x: W - 4 - SIGN.rows[0].length, y: H - 2 - SIGN.rows.length, w: SIGN.rows[0].length, h: SIGN.rows.length };
+
   // animals: two frames each, facing left (they come from the right)
   const ANIMALS = {
     bee: { label: 'Biene', frames: [['.ww.', 'kyky', 'ykyk'], ['....', 'kyky', 'wkyw']], c: { w: '#dff1ff', y: '#f6c12f', k: '#1d1a14' }, move: 'fly' },
@@ -104,7 +129,7 @@
     }));
   }
 
-  function drawGround(ctx, month) {
+  function drawGround(ctx, month, sign = false) {
     const m = MONTHS[month];
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = m.ground;
@@ -128,6 +153,14 @@
     if (m.snow) {
       ctx.fillStyle = '#ffffff';
       for (let i = 0; i < 18; i++) ctx.fillRect(Math.floor(hash(i + 900) * W), EDGE + 2 + Math.floor(hash(i + 950) * (H - EDGE - 4)), 1, 1);
+    }
+    if (sign) {
+      SIGN.rows.forEach((line, dy) => [...line].forEach((ch, dx) => {
+        if (!SIGN.c[ch]) return;
+        ctx.fillStyle = SIGN.c[ch];
+        ctx.fillRect(SIGN_BOX.x + dx, SIGN_BOX.y + dy, 1, 1);
+      }));
+      return;
     }
     // flowers, bottom right
     // the story prop stands in the corner, the small ones to its left
@@ -162,6 +195,12 @@
       this.maxDelay = opts.maxDelay ?? 10800;
       this.a = { phase: 'away', wait: opts.firstDelay ?? 120 + Math.random() * 480 };
       this.mouse = null;
+      this.sign = false; // a new version: the signpost stands in the corner
+    }
+
+    /** Whether a point (meadow pixels) is on the signpost. */
+    onSign(x, y) {
+      return this.sign && x >= SIGN_BOX.x && x < SIGN_BOX.x + SIGN_BOX.w && y >= SIGN_BOX.y && y < SIGN_BOX.y + SIGN_BOX.h;
     }
 
     /** Pointer position in meadow pixels, or null when it left. */
@@ -176,7 +215,7 @@
     }
 
     draw(ctx) {
-      drawGround(ctx, this.month);
+      drawGround(ctx, this.month, this.sign);
       drawAnimal(ctx, this.a);
     }
 
@@ -256,7 +295,7 @@
     });
   }
 
-  const api = { W, H, ZONE, REST_X, MONTHS, CYCLE, animalsOf, ANIMALS, FLOWERS, Meadow, drawGround, renderStatic };
+  const api = { W, H, ZONE, REST_X, SIGN, SIGN_BOX, MONTHS, CYCLE, animalsOf, ANIMALS, FLOWERS, Meadow, drawGround, renderStatic };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Meadow = api;
 })(this);

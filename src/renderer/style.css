@@ -227,14 +227,6 @@ body {
   image-rendering: pixelated;
 }
 
-.mini-update {
-  width: 34px;
-}
-
-.big-label.label-update {
-  color: var(--orange);
-}
-
 .state-done .mini {
   box-shadow:
     0 -2px 0 0 var(--muted),
@@ -486,4 +478,27 @@ body {
   margin-right: 84px;
   white-space: nowrap;
   color: var(--m-muted);
+}
+
+/* new version: the meadow points to the signpost in the corner */
+.m-hint.m-update {
+  font-weight: 700;
+  color: var(--m-text);
+}
+
+.m-box .m-hint:has(.m-link) {
+  margin-right: 56px;
+}
+
+.m-link {
+  color: var(--m-text);
+  text-decoration: underline;
+  text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.m-link:hover {
+  text-decoration-style: dotted;
 }

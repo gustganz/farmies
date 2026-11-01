@@ -437,9 +437,18 @@ meadowCanvas.className = 'meadow-canvas';
 meadowCanvas.width = Meadow.W;
 meadowCanvas.height = Meadow.H;
 const meadowCtx = meadowCanvas.getContext('2d');
-meadowCanvas.addEventListener('mousemove', (e) => {
+const meadowPoint = (e) => {
   const r = meadowCanvas.getBoundingClientRect();
-  meadow.pointer(((e.clientX - r.left) / r.width) * Meadow.W, ((e.clientY - r.top) / r.height) * Meadow.H);
+  return [((e.clientX - r.left) / r.width) * Meadow.W, ((e.clientY - r.top) / r.height) * Meadow.H];
+};
+meadowCanvas.addEventListener('mousemove', (e) => {
+  const [x, y] = meadowPoint(e);
+  meadow.pointer(x, y);
+  meadowCanvas.style.cursor = meadow.onSign(x, y) ? 'pointer' : '';
+});
+// a new version: the signpost in the corner installs it
+meadowCanvas.addEventListener('click', (e) => {
+  if (meadow.onSign(...meadowPoint(e))) buddyApi.installUpdate();
 });
 meadowCanvas.addEventListener('mouseleave', () => meadow.pointer(null));
 
@@ -489,30 +498,6 @@ function tag(s) {
   return hoverable(t, s);
 }
 
-// a new Farmies version: a row like the waiting sessions, on top, with the NEW bubble
-function updateRow() {
-  const r = el('div', 'big-row state-update');
-  const mini = el('span', 'mini mini-update');
-  const g = Bubbles.UPDATE;
-  mini.append(pixelArt('', g.rows, { '#': g.color }));
-  const label =
-    appUpdate.status === 'downloading'
-      ? `Wird geladen … ${appUpdate.progress} %`
-      : appUpdate.status === 'error'
-        ? 'Fehlgeschlagen, nochmal klicken'
-        : appUpdate.installable
-          ? 'Klicken zum Installieren'
-          : 'Klicken öffnet die Download-Seite';
-  const text = el('div', 'big-text');
-  text.append(el('div', 'big-name', `Farmies ${appUpdate.version} ist da`), el('div', 'big-label label-update', label));
-  const when = el('span', 'big-when');
-  when.append(el('span', 'ago', ''), el('span', 'goto', appUpdate.installable ? 'installieren ›' : 'öffnen ›'));
-  r.append(mini, text, when);
-  if (appUpdate.status === 'error') r.title = appUpdate.error || '';
-  r.addEventListener('click', () => buddyApi.installUpdate());
-  return r;
-}
-
 // the last line in the meadow: what the session did last, by its state
 function lastStep(s) {
   const d = s.detail;
@@ -530,6 +515,10 @@ function showDetails(id) {
   const s = sessions.find((x) => x.id === id);
   meadowBox.replaceChildren();
   meadowBox.classList.toggle('empty', !s);
+  if (!s && appUpdate) {
+    meadowBox.append(...updateText());
+    return;
+  }
   if (!s) {
     meadowBox.append(el('div', 'm-hint', 'Fahr über eine Session,'), el('div', 'm-hint', 'dann steht hier, was sie tut.'));
     return;
@@ -546,8 +535,31 @@ function showDetails(id) {
   meadowBox.append(l1, el('div', 'm-task', s.task || s.title || '–'), l3);
 }
 
+// A new version, said by the meadow next to the signpost: "Klick aufs Schild zum Installieren."
+function updateText() {
+  const title = el('div', 'm-hint m-update', `Farmies ${appUpdate.version} ist da!`);
+  const line = el('div', 'm-hint');
+  const link = (text) => {
+    const a = el('span', 'm-link', text);
+    a.addEventListener('click', () => buddyApi.installUpdate());
+    return a;
+  };
+  if (appUpdate.status === 'downloading') {
+    line.textContent = `Wird geladen … ${appUpdate.progress} %`;
+  } else if (appUpdate.status === 'error') {
+    line.append('Fehlgeschlagen. ', link('Nochmal versuchen'));
+    line.title = appUpdate.error || '';
+  } else if (appUpdate.installable) {
+    line.append('Klick aufs Schild zum ', link('Installieren'), '.');
+  } else {
+    line.append('Klick aufs Schild für die ', link('Download-Seite'), '.');
+  }
+  return [title, line];
+}
+
 function meadowPart() {
   meadow.setMonth(new Date().getMonth());
+  meadow.sign = !!appUpdate;
   const m = Meadow.MONTHS[meadow.month];
   const part = el('div', 'meadow');
   part.style.setProperty('--m-ground', m.ground);
@@ -565,7 +577,6 @@ function renderPanel() {
   panelEl.replaceChildren();
   panelEl.append(header());
   const body = el('div', 'panel-body');
-  if (appUpdate) body.append(updateRow());
   pending().forEach((s) => body.append(bigRow(s)));
   const tags = el('div', 'tags');
   [...sessions].sort((a, b) => a.project.localeCompare(b.project, 'de')).forEach((s) => tags.append(tag(s)));

@@ -45,3 +45,15 @@ test('meadow: a visitor comes, rests in the corner and leaves when the pointer c
   assert.strictEqual(meadow.a.phase, 'away');
   assert.ok(meadow.a.wait >= 3600 && meadow.a.wait <= 10800);
 });
+
+test('meadow: the update signpost fits the corner and is clickable only while shown', () => {
+  const { SIGN, SIGN_BOX } = M;
+  assert.ok(SIGN.rows.every((r) => r.length === SIGN.rows[0].length));
+  assert.ok(SIGN_BOX.w <= M.ZONE && SIGN_BOX.y >= 3);
+  const meadow = new M.Meadow({ month: 0 });
+  const mid = [SIGN_BOX.x + 10, SIGN_BOX.y + 4];
+  assert.strictEqual(meadow.onSign(...mid), false);
+  meadow.sign = true;
+  assert.strictEqual(meadow.onSign(...mid), true);
+  assert.strictEqual(meadow.onSign(10, 10), false);
+});
