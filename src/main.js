@@ -14,7 +14,7 @@ const { Updater } = require('./updater');
 // The hen lives in a small transparent window that the renderer moves around (also across
 // displays); it is big enough for the bubble and the hover panel above the hen.
 const WIN_W = 360;
-const WIN_H = 440;
+const WIN_H = 560; // room for the hover panel above the animal
 
 // Walk sheets of the farm animals ("LPC style farm animals" by Daniel Eddeland, see assets/CREDITS.md)
 const ANIMAL_DIR = path.join(__dirname, '..', 'assets', 'lpc');

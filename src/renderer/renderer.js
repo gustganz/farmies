@@ -1,4 +1,4 @@
-/* global Animals, Bubbles, buddyApi */
+/* global Animals, Bubbles, Meadow, buddyApi */
 'use strict';
 
 let scale = 2.5; // screen pixels per sprite pixel (size setting, see setScale)
@@ -9,7 +9,7 @@ const GLIDE_MIN_HEIGHT = 150; // dropped from higher up than this: animals that 
 const GLIDE_FALL_LAST = 60; // the last px above the ground are a normal fall again
 const DRAG_THRESHOLD = 5; // px of movement before a press becomes a drag
 const HOP_HEIGHT = 2; // sprite px the animal hops while a session waits for you
-const PANEL_GAP = 36; // space between animal and panel
+const PANEL_GAP = 16; // space between animal and panel (the panel's tail reaches into it)
 const FRAME_MS = { walk: 140, sleep: 1200, flap: 100, kick: 120, fall: 70, glide: 400 };
 const LIE_DOWN_MS = 1500; // lying awake before falling asleep
 const GET_UP_MS = 700; // lying awake before standing up
@@ -26,6 +26,7 @@ buddyEl.width = 32;
 buddyEl.height = 32;
 
 let animal = null; // Animals.build result, frames as canvases
+let animalId = Animals.DEFAULT_ANIMAL;
 let sheets = {}; // animal id → PNG bytes of its walk sheet
 let sessions = [];
 let appUpdate = null; // available Farmies update (see src/updater.js)
@@ -74,6 +75,7 @@ function toCanvas(frame) {
 
 async function setAnimal(id) {
   if (!sheets[id]) id = Animals.DEFAULT_ANIMAL;
+  animalId = id;
   const built = Animals.build(id, await decodePng(sheets[id]));
   const canvases = (v) => (Array.isArray(v) ? v.map(toCanvas) : toCanvas(v));
   const side = (poses) => Object.fromEntries(Object.entries(poses).map(([k, v]) => [k, canvases(v)]));
@@ -338,8 +340,12 @@ function layout(now) {
 
   if (!panelEl.classList.contains('hidden')) {
     const w = panelEl.offsetWidth;
-    panelEl.style.left = `${Math.round(clamp(hx - w / 2, 8, winSize[0] - w - 8))}px`;
+    const left = Math.round(clamp(hx - w / 2, 8, winSize[0] - w - 8));
+    panelEl.style.left = `${left}px`;
     panelEl.style.bottom = `${top + PANEL_GAP}px`;
+    // the tail points down to the head (on the 2px pixel grid)
+    const tail = panelEl.querySelector('.panel-tail');
+    if (tail) tail.style.left = `${clamp(Math.round((hx - left - 10) / 2) * 2, 6, w - 26)}px`;
   }
 }
 
@@ -350,6 +356,8 @@ function tick(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
   last = now;
   update(now, dt);
+  meadow.step(dt);
+  if (hover) meadow.draw(meadowCtx);
   ctx.clearRect(0, 0, buddyEl.width, buddyEl.height);
   ctx.drawImage(frameFor(now), 0, 0);
   layout(now);
@@ -395,52 +403,184 @@ function el(tag, cls, text) {
   return e;
 }
 
-function row(s) {
-  const r = el('div', 'row');
-  r.append(el('span', `dot ${s.state}`));
-  const text = el('div', 'text');
-  text.append(el('div', 'project', s.project), el('div', 'message', describe(s)));
-  r.append(text, el('span', 'ago', ago(s.ts)));
-  r.addEventListener('click', () => buddyApi.focusSession(s.id));
-  return r;
+// --- hover panel: a speech bubble with every session (the "herd") and the meadow ------------------
+
+// what the animal says on top of the panel
+const VOICE = { chicken: 'Gack!', cow: 'Muh!', pig: 'Oink!', sheep: 'Mäh!', llama: 'Hmm!' };
+// state words in the meadow (the label next to the name)
+const STATE_WORD = {
+  error: 'Fehler',
+  attention: 'Freigabe nötig',
+  question: 'Frage an dich',
+  done: 'fertig',
+  working: 'arbeitet',
+  idle: 'bereit',
+};
+// where a click takes you: "zu VS Code ›"
+const TERM_NAMES = {
+  cursor: 'Cursor',
+  vscode: 'VS Code',
+  'vscode-insiders': 'VS Code',
+  windsurf: 'Windsurf',
+  jetbrains: 'JetBrains',
+  iterm: 'iTerm',
+};
+const termName = (s) => TERM_NAMES[s.term] || 'Terminal';
+const TAIL = ['#PPPPPPPP#', '.#PPPPPP#.', '..#PPPP#..', '...#PP#...', '....##....'];
+const BRANCH = ['#..', '#.#', '##.', '#..'];
+
+// The meadow keeps running (its visitor comes and goes in real time); the panel is rebuilt often,
+// so its canvas is created once and moved into every new panel.
+const meadow = new Meadow.Meadow();
+const meadowCanvas = document.createElement('canvas');
+meadowCanvas.className = 'meadow-canvas';
+meadowCanvas.width = Meadow.W;
+meadowCanvas.height = Meadow.H;
+const meadowCtx = meadowCanvas.getContext('2d');
+meadowCanvas.addEventListener('mousemove', (e) => {
+  const r = meadowCanvas.getBoundingClientRect();
+  meadow.pointer(((e.clientX - r.left) / r.width) * Meadow.W, ((e.clientY - r.top) / r.height) * Meadow.H);
+});
+meadowCanvas.addEventListener('mouseleave', () => meadow.pointer(null));
+
+let hoveredId = null; // session under the pointer: its details are shown in the meadow
+let meadowBox = null;
+
+function header() {
+  const head = el('div', 'panel-head');
+  const p = pending();
+  const working = sessions.filter((s) => s.state === 'working').length;
+  if (p.length) {
+    const text = p.length === 1 ? 'Eine Session wartet auf dich' : `${p.length} Sessions warten auf dich`;
+    head.append(el('b', 'voice', VOICE[animalId] || VOICE.chicken), document.createTextNode(` ${text}`));
+  } else if (working) {
+    head.append(el('b', '', 'Alles ruhig.'), document.createTextNode(working === 1 ? ' Eine arbeitet noch' : ` ${working} arbeiten noch`));
+  } else {
+    head.append(el('b', '', 'zzz …'), document.createTextNode(sessions.length ? ' alle schlafen' : ' keine Sessions'));
+  }
+  return head;
 }
 
-// the update entry on top of the panel
-function updateRow() {
-  const r = el('div', 'row update-row');
-  r.append(el('span', 'dot update'));
-  const text = el('div', 'text');
+function hoverable(e, s) {
+  e.addEventListener('mouseenter', () => showDetails(s.id));
+  e.addEventListener('mouseleave', () => showDetails(null));
+  e.addEventListener('click', () => buddyApi.focusSession(s.id));
+  return e;
+}
+
+// a waiting session: big, with its bubble glyph and label; on hover the time says where a click goes
+function bigRow(s) {
+  const r = el('div', `big-row state-${s.state}`);
+  const mini = el('span', 'mini');
+  const g = Bubbles.GLYPHS[s.state];
+  mini.append(pixelArt('', g.rows, { '#': g.color }));
+  const text = el('div', 'big-text');
+  text.append(el('div', 'big-name', s.project), el('div', `big-label label-${s.state}`, describe(s)));
+  const when = el('span', 'big-when');
+  when.append(el('span', 'ago', ago(s.ts)), el('span', 'goto', `zu ${termName(s)} ›`));
+  r.append(mini, text, when);
+  return hoverable(r, s);
+}
+
+// every session as a name tag; the frame's colour is its state
+function tag(s) {
+  const t = el('span', `tag tag-${s.state}`);
+  t.append(el('span', 'tag-in', s.project));
+  return hoverable(t, s);
+}
+
+function updateBand() {
+  const u = el('div', 'update-band');
+  const g = Bubbles.UPDATE;
+  u.append(pixelArt('', g.rows, { '#': g.color }));
   const message =
     appUpdate.status === 'downloading'
       ? `Wird geladen … ${appUpdate.progress} %`
       : appUpdate.status === 'error'
-        ? `Fehlgeschlagen (${appUpdate.error}), nochmal klicken`
+        ? 'Fehlgeschlagen, nochmal'
         : appUpdate.installable
-          ? 'Klicken zum Installieren'
-          : 'Klicken öffnet die Download-Seite';
-  text.append(el('div', 'project', `Farmies ${appUpdate.version} ist da`), el('div', 'message', message));
-  r.append(text);
-  r.addEventListener('click', () => buddyApi.installUpdate());
-  return r;
+          ? 'Installieren'
+          : 'Download-Seite';
+  u.append(el('span', 'update-text', `Farmies ${appUpdate.version} ist da`), el('span', 'update-btn', message));
+  if (appUpdate.status === 'error') u.title = appUpdate.error || '';
+  u.addEventListener('click', () => buddyApi.installUpdate());
+  return u;
+}
+
+// the last line in the meadow: what the session did last, by its state
+function lastStep(s) {
+  const d = s.detail;
+  if (s.state === 'attention') return d ? `möchte: ${d}` : 'wartet auf deine Freigabe';
+  if (s.state === 'question') return d ? `fragt: ${d}` : 'hat eine Frage an dich';
+  if (s.state === 'error') return d ? `Fehler: ${d}` : 'mit einem Fehler abgebrochen';
+  if (s.state === 'done') return d ? `fertig: ${d}` : s.step;
+  return s.step;
+}
+
+// The meadow's text: three lines of the hovered session, always the same height (nothing jumps).
+function showDetails(id) {
+  hoveredId = id;
+  if (!meadowBox) return;
+  const s = sessions.find((x) => x.id === id);
+  meadowBox.replaceChildren();
+  meadowBox.classList.toggle('empty', !s);
+  if (!s) {
+    meadowBox.append(el('div', 'm-hint', 'Fahr über eine Session,'), el('div', 'm-hint', 'dann steht hier, was sie tut.'));
+    return;
+  }
+  const l1 = el('div', 'm-l1');
+  l1.append(el('b', 'm-name', s.project), el('span', `m-state m-state-${s.state}`, STATE_WORD[s.state] || STATE_WORD.idle), el('span', 'm-when', ago(s.ts)));
+  const l3 = el('div', 'm-last');
+  if (s.branch) {
+    const br = el('span', 'm-branch');
+    br.append(pixelArt('', BRANCH, { '#': Meadow.MONTHS[meadow.month].muted }), el('span', '', s.branch));
+    l3.append(br);
+  }
+  l3.append(el('span', 'm-step', lastStep(s) || ''));
+  meadowBox.append(l1, el('div', 'm-task', s.task || s.title || '–'), l3);
+}
+
+function meadowPart() {
+  meadow.setMonth(new Date().getMonth());
+  const m = Meadow.MONTHS[meadow.month];
+  const part = el('div', 'meadow');
+  part.style.setProperty('--m-ground', m.ground);
+  part.style.setProperty('--m-text', m.text);
+  part.style.setProperty('--m-muted', m.muted);
+  meadowBox = el('div', 'm-box');
+  part.append(meadowCanvas, meadowBox);
+  meadow.draw(meadowCtx);
+  return part;
 }
 
 function renderPanel() {
-  const p = pending();
+  const old = panelEl.querySelector('.panel-body');
+  const scrolled = old ? old.scrollTop : 0;
   panelEl.replaceChildren();
-  if (appUpdate) panelEl.append(updateRow());
-  if (p.length) {
-    panelEl.append(el('div', 'title', p.length === 1 ? '1 Session wartet auf dich' : `${p.length} Sessions warten auf dich`));
-    p.forEach((s) => panelEl.append(row(s)));
-    const footer = el('div', 'footer');
-    const btn = el('button', '', 'Alle als gesehen markieren');
-    btn.addEventListener('click', () => buddyApi.dismissAll());
-    footer.append(btn);
-    panelEl.append(footer);
-  } else {
-    const working = sessions.filter((s) => s.state === 'working');
-    const title = working.length ? `Alles ruhig · ${working.length} arbeitet` : 'Alles ruhig · alle schlafen';
-    panelEl.append(el('div', 'title', title));
-    sessions.forEach((s) => panelEl.append(row(s)));
+  panelEl.append(header());
+  const body = el('div', 'panel-body');
+  pending().forEach((s) => body.append(bigRow(s)));
+  const tags = el('div', 'tags');
+  [...sessions].sort((a, b) => a.project.localeCompare(b.project, 'de')).forEach((s) => tags.append(tag(s)));
+  if (sessions.length) body.append(tags);
+  panelEl.append(body);
+  if (appUpdate) panelEl.append(updateBand());
+  panelEl.append(meadowPart());
+  const m = Meadow.MONTHS[meadow.month];
+  panelEl.append(pixelArt('panel-tail', TAIL, { '#': Bubbles.INK, P: m.ground }));
+  showDetails(sessions.some((s) => s.id === hoveredId) ? hoveredId : null);
+  fitPanel(body);
+  body.scrollTop = scrolled;
+}
+
+// too many sessions for the window: the list in the middle scrolls, head and meadow stay
+function fitPanel(body) {
+  const head = headAnchor(performance.now());
+  const above = (animal ? (buddyEl.height - head.top) * px() : 0) + PANEL_GAP + 8;
+  const over = panelEl.offsetHeight - (winSize[1] - above);
+  if (over > 0) {
+    body.style.maxHeight = `${Math.max(60, body.offsetHeight - over)}px`;
+    body.classList.add('scroll');
   }
 }
 
@@ -467,14 +607,18 @@ function setHover(on) {
     hideTimer = null;
     if (!hover) {
       hover = true;
-      renderPanel();
+      hoveredId = null;
       panelEl.classList.remove('hidden');
+      bubblesEl.classList.add('hidden'); // the panel is the big bubble now
+      renderPanel();
     }
   } else if (hover && !hideTimer) {
     hideTimer = setTimeout(() => {
       hideTimer = null;
       hover = false;
       panelEl.classList.add('hidden');
+      bubblesEl.classList.remove('hidden');
+      meadow.pointer(null);
     }, on ? 0 : 350);
   }
 }

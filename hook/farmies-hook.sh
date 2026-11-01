@@ -11,9 +11,10 @@ ATTN_DIR="$HOME/.farmies/attn"
 
 input=$(cat)
 
-# Extracts a top-level JSON string value (still JSON-escaped, which is what we write back).
+# Extracts a JSON string value (still JSON-escaped, which is what we write back): the first one
+# with this name, from the hook input or from the text given as $2.
 field() {
-  printf '%s' "$input" \
+  printf '%s' "${2-$input}" \
     | grep -oE "\"$1\"[[:space:]]*:[[:space:]]*\"([^\"\\\\]|\\\\.)*\"" \
     | head -n 1 \
     | sed -E 's/^"[^"]*"[[:space:]]*:[[:space:]]*"//; s/"$//'
@@ -24,9 +25,39 @@ esc() {
   printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
 }
 
+# A JSON-escaped value shortened for the hover panel to 300 bytes (the app shortens it further and
+# makes it one line), never ending in a cut escape sequence.
+clip() {
+  printf '%s' "$1" \
+    | head -c 300 \
+    | sed -E 's/(^|[^\\])((\\\\)*)\\u[0-9a-fA-F]{0,3}$/\1\2/; s/(^|[^\\])((\\\\)*)\\$/\1\2/'
+}
+
+# What a tool call does, for the panel: "Edit · src/app.js", "Bash · npm test"
+tool_step() {
+  tool=$(field tool_name)
+  target=$(field file_path)
+  [ -n "$target" ] || target=$(field command)
+  [ -n "$target" ] || target=$(field pattern)
+  [ -n "$target" ] || target=$(field url)
+  [ -n "$target" ] || target=$(field query)
+  [ -n "$target" ] || target=$(field description)
+  target=${target#"$cwd"/}
+  if [ -n "$target" ]; then clip "$tool · $target"; else clip "$tool"; fi
+}
+
 sid=$(field session_id | tr -cd 'A-Za-z0-9_-')
 [ -n "$sid" ] || exit 0
 cwd=$(field cwd)
+# Context for the hover panel, kept from the previous state file: task (the last prompt), the
+# session's title, the last tool step. detail: what the current event is about (permission,
+# question, result, error).
+prev=$(cat "$BUDDY_DIR/$sid.json" 2>/dev/null)
+task=$(field task "$prev")
+title=$(field title "$prev")
+step=$(field step "$prev")
+detail=""
+branch=""
 message=""
 ntype=""
 term=""
@@ -84,6 +115,7 @@ detect_context() {
   pids="${pids# }"
 
   folder=$(git -C "$cwd" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$cwd")
+  branch=$(git -C "$cwd" branch --show-current 2>/dev/null)
 }
 
 # Tab titles are used to find the tab of a session in WSL terminals (Windows Terminal etc., not in
@@ -103,9 +135,11 @@ write_state() {
   tmp="$BUDDY_DIR/.$sid.tmp"
   # transcript: the app treats a question/permission as handled when the transcript changes later
   # (cancelling a question in Claude fires no hook)
-  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","transcript":"%s","ts":%s}\n' \
+  # step stays the last field before ts: the PostToolUse heartbeat replaces just these two
+  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","step":"%s","ts":%s}\n' \
     "$sid" "$event" "$cwd" "$(esc "$folder")" "$message" "$ntype" "$term" "$(esc "$app")" "$(esc "$tty")" \
-    "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
+    "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(esc "$branch")" "$task" "$title" "$detail" \
+    "$step" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
 }
 
 # PreToolUse is only registered for AskUserQuestion: Claude asks the user a question.
@@ -129,6 +163,21 @@ case "$event" in
         *) exit 0 ;;
       esac
     fi
+    case "$event" in
+      PermissionRequest) detail=$(tool_step) ;;
+      Question) detail=$(clip "$(field question)") ;;
+      Stop) detail=$(clip "$(field last_assistant_message)") ;;
+      StopFailure)
+        detail=$(field error)
+        [ -n "$detail" ] || detail=$(field message)
+        detail=$(clip "$detail")
+        ;;
+      Notification)
+        # a permission request usually comes first and says more than the notification
+        detail=$(field detail "$prev")
+        case "$prev" in *'"event":"PermissionRequest"'*) ;; *) detail=$(clip "$(field message)") ;; esac
+        ;;
+    esac
     detect_context
     write_state
     project=$(basename "$folder")
@@ -178,14 +227,31 @@ case "$event" in
       # PostToolUse fires for every tool call: a "still working" heartbeat once a minute is enough.
       # Compared with the ts the hook wrote (same clock): under WSL the file time comes from Windows,
       # whose clock may differ from the WSL clock.
-      last=$(sed -n 's/.*"event":"PostToolUse".*"ts":\([0-9]*\).*/\1/p' "$BUDDY_DIR/$sid.json" 2>/dev/null)
-      [ -n "$last" ] && [ $(($(date +%s) - last)) -lt 60 ] && exit 0
+      # In between only the step is updated, in the file as it is (no context detection).
+      last=$(printf '%s' "$prev" | sed -n 's/.*"event":"PostToolUse".*"ts":\([0-9]*\).*/\1/p')
+      if [ -n "$last" ] && [ $(($(date +%s) - last)) -lt 60 ]; then
+        head=${prev%%,\"step\":\"*}
+        [ "$head" = "$prev" ] && exit 0 # older state file without a step
+        tmp="$BUDDY_DIR/.$sid.tmp"
+        printf '%s,"step":"%s","ts":%s}\n' "$head" "$(tool_step)" "$last" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
+        exit 0
+      fi
+    fi
+    if [ "$event" = UserPromptSubmit ]; then
+      task=$(clip "$(field prompt)")
+      st=$(field session_title)
+      [ -n "$st" ] && title=$(clip "$st")
+      step=""
+    else
+      step=$(tool_step)
     fi
     tty="" # detect afresh (it may have been read from the marker file above)
     detect_context
     write_state
     ;;
   SessionStart)
+    st=$(field session_title)
+    [ -n "$st" ] && title=$(clip "$st")
     detect_context
     write_state
     ;;

@@ -26,6 +26,25 @@ const NEEDS_USER = {
 };
 const NEEDS_USER_STATES = Object.values(NEEDS_USER);
 
+// Context texts for the hover panel: one line, at most this many characters.
+const TEXT_MAX = 80;
+function oneLine(text, max = TEXT_MAX) {
+  const t = String(text || '')
+    .replace(/\uFFFD+$/, '') // a multi-byte character cut by the hook
+    .replace(/\s+/g, ' ')
+    .trim();
+  return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
+}
+// Claude's last message: its first sentence, without Markdown marks
+function firstSentence(text) {
+  const plain = String(text || '')
+    .replace(/[*_`#>]+/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+  const m = plain.match(/^.+?[.!?](?=\s|$)/);
+  return oneLine(m ? m[0] : plain);
+}
+
 // home of the environment the hooks run in (from install.json, written by src/hooks.js)
 let home = null;
 function installHome() {
@@ -141,6 +160,12 @@ class Sessions extends EventEmitter {
         .filter(Boolean)
         .map(Number),
       distro: d.distro || '',
+      // context for the hover panel (from hook versions that write it)
+      task: oneLine(d.task),
+      title: oneLine(d.title),
+      branch: oneLine(d.branch, 40),
+      step: oneLine(d.step),
+      detail: d.event === 'Stop' ? firstSentence(d.detail) : oneLine(d.detail),
     };
   }
 
@@ -193,4 +218,4 @@ class Sessions extends EventEmitter {
   }
 }
 
-module.exports = { Sessions, DIR, NEEDS_USER_STATES };
+module.exports = { Sessions, DIR, NEEDS_USER_STATES, oneLine, firstSentence };

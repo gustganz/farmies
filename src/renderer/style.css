@@ -156,136 +156,364 @@ body {
   }
 }
 
-/* Panel */
+/* Panel: one big speech bubble (tail to the animal's head) with every session and the meadow */
 
 #panel {
   position: absolute;
   left: 0;
   bottom: 0;
-  width: 300px;
-  max-height: 200px;
-  overflow-y: auto;
+  width: 304px;
   box-sizing: border-box;
-  padding: 6px;
+  padding: 8px 8px 0;
   background: var(--paper);
   color: var(--text);
-  box-shadow:
-    var(--pixel-border),
-    6px 6px 0 0 rgba(0, 0, 0, 0.25);
+  box-shadow: var(--pixel-border);
   font-size: 14px;
   line-height: 1.15;
+}
+
+/* stepped tail at the bottom, in the meadow's colour (pixels from renderer.js, x set in layout()) */
+.panel-tail {
+  position: absolute;
+  top: 100%;
+  image-rendering: pixelated;
+}
+
+.panel-head {
+  padding: 0 4px 6px;
+  font-size: 15px;
+}
+
+.voice {
+  color: var(--red);
+}
+
+.panel-body.scroll {
+  overflow-y: auto;
+  margin-right: -4px;
+  padding-right: 2px;
   scrollbar-width: thin;
   scrollbar-color: var(--ink) var(--paper-dark);
 }
 
-.title {
-  padding: 2px 6px 6px;
-  font-weight: 700;
-  border-bottom: 2px solid var(--paper-dark);
-  margin-bottom: 4px;
-}
-
-.row {
-  display: flex;
-  gap: 8px;
-  align-items: flex-start;
-  padding: 6px;
+/* a waiting session: its bubble glyph, name and label, the time (on hover: where a click goes) */
+.big-row {
+  display: grid;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px;
   cursor: pointer;
 }
 
-.update-row {
-  border-bottom: 2px solid var(--paper-dark);
-  margin-bottom: 4px;
-}
-
-.row:hover {
+.big-row:hover {
   background: var(--paper-dark);
 }
 
-.dot {
-  flex: none;
-  width: 8px;
-  height: 8px;
-  margin-top: 4px;
-  background: var(--gray);
-  box-shadow: 0 0 0 2px var(--ink);
+.mini {
+  width: 26px;
+  height: 22px;
+  margin: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--paper);
+  box-shadow: var(--pixel-border);
 }
 
-.dot.attention,
-.dot.error {
+.mini canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.state-done .mini {
+  box-shadow:
+    0 -2px 0 0 var(--muted),
+    0 2px 0 0 var(--muted),
+    -2px 0 0 0 var(--muted),
+    2px 0 0 0 var(--muted);
+}
+
+.big-name {
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.big-label {
+  font-size: 13px;
+  color: var(--muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.label-error,
+.label-attention {
+  color: var(--red);
+}
+
+.label-question {
+  color: var(--blue);
+}
+
+.big-when {
+  align-self: start;
+  padding-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.big-when .goto,
+.big-row:hover .big-when .ago {
+  display: none;
+}
+
+.big-row:hover .big-when .goto {
+  display: inline;
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* the herd: every session as a name tag, sorted by name; frame colour = state */
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 8px 4px 6px;
+}
+
+@property --a {
+  syntax: '<angle>';
+  inherits: true;
+  initial-value: 0deg;
+}
+
+/* 2px frame (the background) around the paper inside, corners notched like the bubbles */
+.tag {
+  display: inline-block;
+  padding: 2px;
+  font-size: 13px;
+  background: var(--ink);
+  cursor: pointer;
+  clip-path: polygon(
+    2px 0,
+    calc(100% - 2px) 0,
+    calc(100% - 2px) 2px,
+    100% 2px,
+    100% calc(100% - 2px),
+    calc(100% - 2px) calc(100% - 2px),
+    calc(100% - 2px) 100%,
+    2px 100%,
+    2px calc(100% - 2px),
+    0 calc(100% - 2px),
+    0 2px,
+    2px 2px
+  );
+}
+
+.tag-in {
+  display: block;
+  padding: 1px 7px;
+  line-height: 15px;
+  background: var(--paper);
+  color: var(--text);
+}
+
+.tag:hover .tag-in {
+  background: var(--ink);
+  color: var(--paper);
+}
+
+.tag-error,
+.tag-attention {
   background: var(--red);
 }
 
-.dot.question {
+.tag-question {
   background: var(--blue);
 }
 
-.dot.done {
+.tag-done {
   background: var(--green);
 }
 
-.dot.update {
-  background: var(--orange);
+/* working: the colours turn around the frame (stepped like pixels). They avoid red/blue/green,
+   which mean "needs you". */
+.tag-working,
+.m-state-working {
+  background: conic-gradient(from var(--a), #9b59b6 0 25%, #16a8a0 0 50%, #e67e22 0 75%, #e84393 0);
+  animation: turn 2s steps(16) infinite;
 }
 
-/* working: the square keeps changing colour, so you see something is going on. The colours
-   avoid red/blue/green, which mean "needs you". */
-.dot.working {
-  animation: working 1.6s steps(1) infinite;
-}
-
-@keyframes working {
-  0% {
-    background: #9b59b6;
-  }
-  25% {
-    background: #16a8a0;
-  }
-  50% {
-    background: #e67e22;
-  }
-  75% {
-    background: #e84393;
+@keyframes turn {
+  to {
+    --a: 360deg;
   }
 }
 
-.text {
-  min-width: 0;
-}
-
-.project {
+/* new Farmies version: an orange band above the meadow */
+.update-band {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px -8px 0;
+  padding: 6px 12px;
+  background: #fbe3c6;
+  border-top: 2px solid var(--ink);
   font-weight: 700;
+  cursor: pointer;
+}
+
+.update-band canvas {
+  image-rendering: pixelated;
+}
+
+.update-text {
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.update-btn {
+  padding: 1px 6px;
+  background: var(--orange);
+  color: #fff;
+  box-shadow: var(--pixel-border);
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
+.update-band:hover .update-btn {
+  background: var(--ink);
+}
+
+/* the meadow: changes with the month; three lines about the hovered session, always the same
+   height. The bottom right corner stays free for the props and the visitor. */
+.meadow {
+  position: relative;
+  height: 66px;
+  margin: 8px -8px 0;
+  color: var(--m-text);
+}
+
+.meadow-canvas {
+  position: absolute;
+  left: 0;
+  top: -6px;
+  width: 304px;
+  height: 72px;
+  image-rendering: pixelated;
+}
+
+.m-box {
+  position: absolute;
+  left: 12px;
+  right: 12px;
+  top: 6px;
+  display: grid;
+  gap: 3px;
+  font-size: 13px;
+  line-height: 16px;
+  pointer-events: none; /* the visitor notices the pointer through the canvas below */
+}
+
+.m-l1 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.m-name {
+  flex: none;
+  max-width: 150px;
+  font-size: 14px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.m-state {
+  padding: 0 5px;
+  font-size: 12px;
+  line-height: 15px;
+  color: #fff;
+  background: var(--ink);
+}
+
+.m-state-error,
+.m-state-attention {
+  background: var(--red);
+}
+
+.m-state-question {
+  background: var(--blue);
+}
+
+.m-state-done {
+  background: var(--green);
+}
+
+.m-when {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--m-muted);
+}
+
+.m-task,
+.m-last {
+  margin-right: 84px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.m-task {
+  font-weight: 700;
+}
+
+.m-last {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--m-muted);
+}
+
+.m-branch {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  flex: none;
+  max-width: 110px;
+  overflow: hidden;
+}
+
+.m-branch span {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.message {
-  color: var(--muted);
+.m-branch canvas {
+  flex: none;
+  image-rendering: pixelated;
 }
 
-.ago {
-  margin-left: auto;
-  color: var(--muted);
+.m-step {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
-.footer {
-  padding: 6px 6px 2px;
-  text-align: right;
-}
-
-.footer button {
-  border: 0;
-  padding: 2px 6px;
-  background: var(--paper-dark);
-  color: var(--text);
-  box-shadow: var(--pixel-border);
-  font: inherit;
-  cursor: pointer;
-}
-
-.footer button:hover {
-  background: var(--ink);
-  color: var(--paper);
+.m-hint {
+  margin-right: 84px;
+  white-space: nowrap;
+  color: var(--m-muted);
 }
