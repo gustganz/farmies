@@ -10,7 +10,9 @@ const GLIDE_FALL_LAST = 60; // the last px above the ground are a normal fall ag
 const DRAG_THRESHOLD = 5; // px of movement before a press becomes a drag
 const HOP_HEIGHT = 2; // sprite px the animal hops while a session waits for you
 const PANEL_GAP = 36; // space between animal and panel
-const FRAME_MS = { walk: 140, sleep: 1000, flap: 100, kick: 120, fall: 70, glide: 400 };
+const FRAME_MS = { walk: 140, sleep: 1200, flap: 100, kick: 120, fall: 70, glide: 400 };
+const LIE_DOWN_MS = 1500; // lying awake before falling asleep
+const GET_UP_MS = 700; // lying awake before standing up
 // Swinging while carried: a damped spring towards a tilt against the pointer's movement.
 const SWING = { perSpeed: 0.04, max: 35, stiffness: 60, damping: 7 };
 
@@ -38,7 +40,8 @@ let drag = null;
 
 // Animal position in screen coordinates: x = left edge, y = feet (bottom edge).
 // Modes: walk, sit, alert, sleep (on the ground) · held, fall, glide (in the air).
-const hen = { x: 0, y: 0, vx: 0, vy: 0, dir: -1, mode: 'sit', until: 0, hop: 0, displayId: null, placed: false };
+// asleepAt: when it lay down (asleep after LIE_DOWN_MS); upUntil: still getting up
+const hen = { x: 0, y: 0, vx: 0, vy: 0, dir: -1, mode: 'sit', until: 0, hop: 0, displayId: null, placed: false, asleepAt: 0, upUntil: 0 };
 // swing (degrees) while carried and right after; pointer speed in px/s
 const swing = { angle: 0, speed: 0, pointerSpeed: 0 };
 
@@ -237,13 +240,16 @@ function update(now, dt) {
   // walking about (hopping, with the bubbles). Nothing going on at all: sleep.
   const waiting = pending().length > 0;
   if (!hover) {
+    const was = hen.mode;
     if (waiting && !busy()) hen.mode = 'alert';
     else if (!waiting && sleeping()) hen.mode = 'sleep';
     else if (hen.mode === 'alert' || hen.mode === 'sleep' || now > hen.until) chooseMode(now);
+    if (hen.mode === 'sleep' && was !== 'sleep') hen.asleepAt = now + LIE_DOWN_MS;
+    if (was === 'sleep' && hen.mode !== 'sleep') hen.upUntil = now + GET_UP_MS;
   }
 
   hen.hop = 0;
-  if (hover) return; // stand still so the user can click
+  if (hover || gettingUp(now)) return; // stand still so the user can click; or still getting up
   if (hen.mode === 'walk') {
     hen.x += hen.dir * WALK_SPEED * dt;
     if (hen.x <= minX(d)) hen.dir = 1;
@@ -256,8 +262,13 @@ function update(now, dt) {
   }
 }
 
+const gettingUp = (now) => now < hen.upUntil && !inAir();
+// lying awake: just lay down, or getting up
+const lyingAwake = (now) => (hen.mode === 'sleep' && now < hen.asleepAt) || gettingUp(now);
+
 function frameFor(now) {
   const side = animal.frames[hen.dir > 0 ? 'right' : 'left'];
+  if (lyingAwake(now)) return side.lie;
   const cycle = (frames, ms) => frames[Math.floor(now / ms) % frames.length];
   switch (hen.mode) {
     case 'held': // front view; the chicken flaps, all kick their legs
@@ -278,10 +289,11 @@ function frameFor(now) {
 }
 
 /** Head of the current pose in sprite pixels: where the bubbles point to. */
-function headAnchor() {
+function headAnchor(now) {
   if (hen.mode === 'held' || hen.mode === 'fall') return animal.anchors.held;
-  if (hen.mode === 'alert') return animal.anchors.front;
   const right = hen.dir > 0;
+  if (lyingAwake(now)) return animal.anchors[right ? 'lieRight' : 'lieLeft'];
+  if (hen.mode === 'alert') return animal.anchors.front;
   if (hen.mode === 'sleep') return animal.anchors[right ? 'sleepRight' : 'sleepLeft'];
   return animal.anchors[right ? 'right' : 'left'];
 }
@@ -299,7 +311,7 @@ function windowPos() {
   return [Math.round(wx), Math.round(wy)];
 }
 
-function layout() {
+function layout(now) {
   const [wx, wy] = windowPos();
   if (wx !== lastWin[0] || wy !== lastWin[1]) {
     lastWin = [wx, wy];
@@ -311,7 +323,7 @@ function layout() {
   buddyEl.style.transform = `translate(${lx}px, ${-hen.hop}px) rotate(${swing.angle.toFixed(1)}deg)`;
 
   // head on screen: x centre, and its top as distance from the window bottom
-  const head = headAnchor();
+  const head = headAnchor(now);
   const hx = lx + head.x * px() + px() / 2;
   const top = (buddyEl.height - head.top) * px(); // highest point of the animal
   const widths = bubbleEls.map((b) => b.offsetWidth);
@@ -320,7 +332,7 @@ function layout() {
     bubbleEls[i].style.bottom = `${pos.bottom}px`;
   });
 
-  zzzEl.classList.toggle('hidden', hen.mode !== 'sleep');
+  zzzEl.classList.toggle('hidden', hen.mode !== 'sleep' || lyingAwake(now));
   zzzEl.style.left = `${Math.round(hx + (hen.dir > 0 ? -40 : 8))}px`;
   zzzEl.style.bottom = `${top - 4}px`;
 
@@ -340,7 +352,7 @@ function tick(now) {
   update(now, dt);
   ctx.clearRect(0, 0, buddyEl.width, buddyEl.height);
   ctx.drawImage(frameFor(now), 0, 0);
-  layout();
+  layout(now);
 }
 
 // --- panel & bubble ----------------------------------------------------------------------------
