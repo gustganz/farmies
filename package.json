@@ -1,0 +1,76 @@
+{
+  "name": "farmies",
+  "productName": "Farmies",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Pixel farm animals that tell you when a Claude Code session needs you",
+  "author": "gustganz",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "icon": "node scripts/make-icon.js",
+    "dist:win": "npm run ext && npm run icon && electron-builder --win portable",
+    "dist:mac": "npm run ext && npm run icon && electron-builder --mac",
+    "dist:mac-unsigned": "sh scripts/build-mac-unsigned.sh",
+    "ext": "cd extension && vsce package -o farmies-terminal.vsix --allow-missing-repository --skip-license"
+  },
+  "devDependencies": {
+    "@electron/packager": "20.3.0",
+    "@vscode/vsce": "4.0.0",
+    "electron": "^45.2.1",
+    "electron-builder": "26.17.0"
+  },
+  "dependencies": {
+    "@fontsource/pixelify-sans": "^5.3.0",
+    "@fontsource/silkscreen": "^5.3.0"
+  },
+  "build": {
+    "appId": "com.gustganz.farmies",
+    "productName": "Farmies",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "src/**",
+      "hook/**",
+      "assets/**",
+      "extension/farmies-terminal.vsix",
+      "package.json"
+    ],
+    "asarUnpack": [
+      "src/*.ps1",
+      "extension/farmies-terminal.vsix"
+    ],
+    "win": {
+      "target": "portable",
+      "icon": "build/icon.png"
+    },
+    "portable": {
+      "artifactName": "Farmies-${version}-portable.exe"
+    },
+    "mac": {
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "universal"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "universal"
+          ]
+        }
+      ],
+      "icon": "build/icon.icns",
+      "category": "public.app-category.developer-tools",
+      "identity": "-",
+      "extendInfo": {
+        "LSUIElement": true
+      },
+      "artifactName": "Farmies-${version}-mac.${ext}"
+    }
+  }
+}
