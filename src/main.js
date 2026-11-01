@@ -146,18 +146,25 @@ function updateTray() {
   const hookInfo = hookStatus && !hookStatus.ok ? ` · Hooks: ${hookStatus.reason}` : '';
   tray.setToolTip((pending ? `Farmies – ${pending} wartet auf dich` : 'Farmies') + hookInfo);
   const update = updater.update;
+  // Items are left out rather than hidden: Windows still draws hidden items as empty space.
+  const updateItems = update
+    ? [
+        {
+          label:
+            update.status === 'downloading'
+              ? `Update auf ${update.version} wird geladen … ${update.progress} %`
+              : `Update auf ${update.version} installieren`,
+          enabled: update.status !== 'downloading',
+          click: () => updater.install(),
+        },
+      ]
+    : [];
   tray.setContextMenu(
     Menu.buildFromTemplate([
-      {
-        label:
-          update?.status === 'downloading'
-            ? `Update auf ${update.version} wird geladen … ${update.progress} %`
-            : `Update auf ${update?.version} installieren`,
-        visible: !!update,
-        enabled: update?.status !== 'downloading',
-        click: () => updater.install(),
-      },
-      { type: 'separator', visible: !!update },
+      // heading: name and version
+      { label: `Farmies ${app.getVersion()}`, enabled: false },
+      ...updateItems,
+      { type: 'separator' },
       {
         label: 'Tier',
         submenu: Object.entries(Animals.ANIMALS).map(([id, a]) => ({
@@ -188,18 +195,21 @@ function updateTray() {
         },
       },
       { type: 'separator' },
-      {
-        label: 'Beim Login starten',
-        type: 'checkbox',
-        visible: autostart.supported(),
-        checked: autostart.supported() && autostart.isEnabled(),
-        click: (item) => {
-          settings.autostart = item.checked;
-          saveSettings();
-          autostart.setEnabled(item.checked);
-        },
-      },
-      { type: 'separator' },
+      ...(autostart.supported()
+        ? [
+            {
+              label: 'Beim Login starten',
+              type: 'checkbox',
+              checked: autostart.isEnabled(),
+              click: (item) => {
+                settings.autostart = item.checked;
+                saveSettings();
+                autostart.setEnabled(item.checked);
+              },
+            },
+            { type: 'separator' },
+          ]
+        : []),
       { label: 'Über Farmies', click: showAbout },
       { label: 'Deinstallieren…', click: confirmUninstall },
       { label: 'Beenden', click: () => app.quit() },
