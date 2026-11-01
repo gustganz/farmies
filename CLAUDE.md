@@ -58,6 +58,7 @@ only release when Gust asks for it.
 
 `[TASK] short lowercase description` (or `[BUGFIX]`), blank line, short English explanation. No ticket
 number, no Co-Authored-By trailer. Commit and push only when asked.
+No pull requests: test on a separate branch (CI start tests), then push to main after Gust's OK.
 
 ## Open points
 
