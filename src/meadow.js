@@ -83,7 +83,8 @@
       'oooooooooooooooooooooopo',
       ...Array.from({ length: 13 }, () => '.....................opo'),
     ],
-    // the board, hanging from the arm on two chains (x 2 and 17)
+    // the board, hanging from the arm on two chains (x 0 and 15); it starts 2 px left of the arm, so
+    // it never swings into the post
     board: [
       'oooooooooooooooooooo',
       'ohhhhhhhhhhhhhhhhhho',
@@ -91,30 +92,42 @@
       'owwwwwwwwwwwwwwwwwwo',
       'oooooooooooooooooooo',
     ],
-    chains: [2, 17],
+    chains: [0, 15],
+    boardX: -2,
     boardY: 5,
   };
   SIGN.rows = SIGN.gallows;
   const SIGN_BOX = { x: W - 4 - SIGN.gallows[0].length, y: H - 2 - SIGN.gallows.length, w: SIGN.gallows[0].length, h: SIGN.gallows.length };
-  // swing: the board moves a pixel to the side and back, slowly
-  const SWING = [0, 0, 1, 1, 1, 0, 0, -1, -1, -1];
-  const SWING_STEP = 0.45; // s per step
+  const SIGN_HIT = { x: SIGN_BOX.x - 5, y: SIGN_BOX.y, w: SIGN_BOX.w + 5, h: SIGN_BOX.h }; // incl. the board swinging out
+  // swing: board and chains swing like a pendulum from the hooks on the arm. The further down, the
+  // further out: chains lean, the side edges lean (pixel stairs), the letters go along as one block.
+  // Values: how far the bottom edge is out, in pixels.
+  const SWING = [0, 1, 2, 3, 3, 2, 1, 0, -1, -2, -3, -3, -2, -1];
+  const SWING_STEP = 0.2; // s per step
 
   function drawSign(ctx, time) {
-    const px = (rows, x0, y0) => rows.forEach((line, dy) => [...line].forEach((ch, dx) => {
+    const { x, y } = SIGN_BOX;
+    SIGN.gallows.forEach((line, dy) => [...line].forEach((ch, dx) => {
       if (!SIGN.c[ch]) return;
       ctx.fillStyle = SIGN.c[ch];
-      ctx.fillRect(x0 + dx, y0 + dy, 1, 1);
+      ctx.fillRect(x + dx, y + dy, 1, 1);
     }));
-    const { x, y } = SIGN_BOX;
-    const sway = SWING[Math.floor(time / SWING_STEP) % SWING.length];
-    px(SIGN.gallows, x, y);
+    const out = SWING[Math.floor(time / SWING_STEP) % SWING.length];
+    const part = (f) => Math.sign(out) * Math.round(Math.abs(out) * f);
+    const bh = SIGN.board.length;
+    // offset of a board row: top edge a third, letters two thirds, bottom edge the whole way
+    const offset = (row) => (row < 2 ? part(1 / 3) : row < bh - 2 ? part(2 / 3) : out);
+    const top = y + SIGN.boardY;
+    SIGN.board.forEach((line, row) => [...line].forEach((ch, col) => {
+      if (!SIGN.c[ch]) return;
+      ctx.fillStyle = SIGN.c[ch];
+      ctx.fillRect(x + SIGN.boardX + col + offset(row), top + row, 1, 1);
+    }));
+    // chains: from the hook on the arm down to the board's top edge, leaning with it
     ctx.fillStyle = SIGN.c.k;
     for (const cx of SIGN.chains) {
-      ctx.fillRect(x + cx, y + 3, 1, 1); // hooked to the arm
-      ctx.fillRect(x + cx + sway, y + 4, 1, 1); // follows the board
+      for (let cy = y + 3; cy < top; cy++) ctx.fillRect(x + cx + (cy === y + 3 ? 0 : part(1 / 3)), cy, 1, 1);
     }
-    px(SIGN.board, x + sway, y + SIGN.boardY);
   }
 
   // animals: two frames each, facing left (they come from the right)
@@ -218,7 +231,7 @@
 
     /** Whether a point (meadow pixels) is on the signpost. */
     onSign(x, y) {
-      return this.sign && x >= SIGN_BOX.x && x < SIGN_BOX.x + SIGN_BOX.w && y >= SIGN_BOX.y && y < SIGN_BOX.y + SIGN_BOX.h;
+      return this.sign && x >= SIGN_HIT.x && x < SIGN_HIT.x + SIGN_HIT.w && y >= SIGN_HIT.y && y < SIGN_HIT.y + SIGN_HIT.h;
     }
 
     /** Pointer position in meadow pixels, or null when it left. */
