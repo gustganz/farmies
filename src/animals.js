@@ -8,11 +8,13 @@
 (function (root) {
   'use strict';
 
-  // lying poses, see src/poses.js
-  const { LYING } = typeof module !== 'undefined' && module.exports ? require('./poses') : root.Poses;
+  // lying and standing poses, see src/poses.js
+  const { LYING, STANDING } = typeof module !== 'undefined' && module.exports ? require('./poses') : root.Poses;
   const ROW = { up: 0, left: 1, down: 2, right: 3 };
 
-  // frame: size of a frame in the sheet; size: display size relative to the chicken's pixels.
+  // frame: size of a frame in the sheet; size: display size relative to the chicken's pixels;
+  // walkOrder: sheet columns of the walk cycle (the llama's sheet runs backwards: its feet slid
+  // forward while on the ground).
   // The large animals are drawn at double detail in the sheets; shown at 0.75 they are clearly
   // bigger than the chicken without dwarfing it (halve: true would scale them down to its pixels).
   const ANIMALS = {
@@ -20,7 +22,7 @@
     cow: { label: 'Kuh', sheet: 'cow_walk.png', frame: 128, size: 0.75 },
     pig: { label: 'Schwein', sheet: 'pig_walk.png', frame: 128, size: 0.75 },
     sheep: { label: 'Schaf', sheet: 'sheep_walk.png', frame: 128, size: 0.75 },
-    llama: { label: 'Lama', sheet: 'llama_walk.png', frame: 128, size: 0.75 },
+    llama: { label: 'Lama', sheet: 'llama_walk.png', frame: 128, size: 0.75, walkOrder: [3, 2, 1, 0] },
   };
   const DEFAULT_ANIMAL = 'chicken';
 
@@ -409,7 +411,7 @@
     const MARGIN = Math.round(size / 3);
     const take = (col, row) => margin(a.halve ? halve(sub(sheet, size, col, row)) : sub(sheet, size, col, row), MARGIN);
     const m = (v) => v + MARGIN; // sheet frame coordinates → frame with margin
-    let walk = [0, 1, 2, 3].map((c) => take(c, ROW.left));
+    let walk = (a.walkOrder || [0, 1, 2, 3]).map((c) => take(c, ROW.left));
     // all poses stand on the same ground line: the feet when walking (the sheet's rows are not
     // aligned, e.g. the front view sits lower)
     const ground = Math.max(...walk.map(bottomRow));
@@ -419,7 +421,16 @@
     // chicken: the tail feathers behind the head darker, so they don't look like a second head
     if (a.canFly) front = lowerFrontTail(shadeBackground(front, m(CHICKEN.frontTailBottom) + frontShift));
 
-    const stand = walk[0];
+    // standing: the first walk frame, or hand-drawn straight legs (src/poses.js)
+    const standing = STANDING[id];
+    let stand = walk[0];
+    if (standing) {
+      stand = take(standing.frame, ROW.left);
+      for (let y = m(standing.y); y < stand.h; y++) for (let x = 0; x < stand.w; x++) clear(stand, x, y);
+      standing.rows.forEach((line, y) =>
+        [...line].forEach((ch, x) => ch !== '.' && set(stand, m(standing.x + x), m(standing.y + y), hexColor(standing.palette[ch]))),
+      );
+    }
 
     // Lying: lying down (awake), then asleep and breathing (src/poses.js), on the uncropped frame.
     const lying = LYING[id];
@@ -469,14 +480,14 @@
     }
 
     // common crop for all frames, with room for wings and kicking legs
-    const all = [...walk, front, lie, ...sleep, ...held, ...glide];
+    const all = [...walk, stand, front, lie, ...sleep, ...held, ...glide];
     const box = bbox(all);
     const pad = 2;
     const cut = (f) => crop(f, box, pad);
     const at = (p) => ({ x: p.x - box.x0 + pad, y: p.y - box.y0 + pad });
 
     walk = walk.map(cut);
-    const left = { walk, idle: walk[0], lie: cut(lie), sleep: sleep.map(cut), glide: glide.map(cut) };
+    const left = { walk, idle: cut(stand), lie: cut(lie), sleep: sleep.map(cut), glide: glide.map(cut) };
     const right = Object.fromEntries(
       Object.entries(left).map(([k, v]) => [k, Array.isArray(v) ? v.map(mirror) : mirror(v)]),
     );

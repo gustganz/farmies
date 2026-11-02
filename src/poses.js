@@ -337,6 +337,38 @@
     },
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = { LYING };
-  else root.Poses = { LYING };
+  // Standing legs (side view) for sheets whose walk frames have no frame with straight legs: from
+  // `y` down, the walk frame `frame` (sheet column, left-facing row) is replaced by these rows,
+  // drawn at `x` (sheet frame coordinates). Llama: the belly from walk frame 1, all four legs
+  // straight down, the far ones darker (its own near front leg, copied).
+  const STANDING = {
+    llama: {
+      frame: 1,
+      x: 49,
+      y: 73,
+      palette: { a: '#222121', b: '#3a3737', c: '#827c7c', d: '#b7b3b2', e: '#dbd2ca', f: '#efe9e7' },
+      rows: [
+        'accccccddcccccccccccccccccbccdeddcb',
+        'acccccccccaaacccccccccabccccdddddcb',
+        'acccaccccaa..aaaaaaaaa..acccacccca.',
+        'acccacccca..............acccacccca.',
+        'acccacccca..............acccacccca.',
+        'acccacddca..............acccacddca.',
+        'acccadddda..............acccadddda.',
+        'acccadedca..............acccadedca.',
+        'acccadeea...............acccadeea..',
+        'acccadffa...............acccadffa..',
+        'acccaeffa...............acccaeffa..',
+        'acccaeeea...............acccaeeea..',
+        'accaaceda..............aaccaaceda..',
+        'bbbabbbca..............abbbabbbca..',
+        'bbbabbba...............abbbabbba...',
+        'bbaabbaa...............abbaabbaa...',
+        'aaaaaaa................aaaaaaaa....',
+      ],
+    },
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = { LYING, STANDING };
+  else root.Poses = { LYING, STANDING };
 })(this);
