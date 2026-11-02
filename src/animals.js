@@ -38,7 +38,7 @@
   // shoulder row (src/poses.js)
   const FRONT_WINGS = {
     up: { angle: 50, length: 12, thickness: 6, shoulder: 0 },
-    out: { angle: 5, length: 12, thickness: 6, shoulder: 1 },
+    out: { angle: 5, length: 12, thickness: 6, shoulder: -3 },
   };
 
   // raised wings, '#' outline, 'e' feather, 'f' light shade, 'd' dark shade (palette of the chicken)
@@ -428,12 +428,10 @@
     let glide = [];
     if (a.canFly) {
       const s = (v) => m(Math.round((v * size) / 32)); // chicken coordinates → this frame
-      // wings at the body's outer edges in the shoulder row (the body is narrower up there)
+      // wings at the body's outer edges, from the shoulder row
       const { columns, rows } = drawn.wingEdges;
-      const edges = (y) => {
-        const line = drawn.rows[y];
-        return [line.search(/[^.]/), line.length - 1 - [...line].reverse().join('').search(/[^.]/)].map((x) => frontAt(x, y)[0]);
-      };
+      const shoulderY = frontAt(0, drawn.shoulders)[1];
+      const shoulders = [frontAt(0, 0)[0], frontAt(drawn.rows[0].length - 1, 0)[0]];
       const open = (f) =>
         removeFrontWingEdges(
           f,
@@ -442,8 +440,7 @@
         );
       held = [FRONT_WINGS.up, FRONT_WINGS.out, FRONT_WINGS.up, FRONT_WINGS.out].map((wing, i) => {
         const f = open(held[i % held.length]);
-        const y = drawn.shoulders + wing.shoulder;
-        drawFrontWings(f, wing, edges(y), frontAt(0, y)[1], size / 32);
+        drawFrontWings(f, wing, shoulders, shoulderY + wing.shoulder, size / 32);
         return f;
       });
       // gliding sideways: wings spread, folded wing painted over, comb and tail fluttering

@@ -378,7 +378,7 @@
     chicken: {
       x: 8,
       legs: 22,
-      shoulders: 10,
+      shoulders: 13,
       wingEdges: { columns: [[3, 5], [10, 12]], rows: [13, 18] },
       palette: { a: '#3a3737', b: '#222121', w: '#efe9e7', l: '#b7b3b2', g: '#827c7c', r: '#c84141', d: '#9e3e37', o: '#cf7b49' },
       rows: [
