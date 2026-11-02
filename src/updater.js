@@ -80,7 +80,7 @@ class Updater extends EventEmitter {
     const found = updateFrom(await res.json(), this.app.getVersion(), process.platform, process.arch);
     if (!found) {
       if (this.update) this.set(null);
-    } else if (!this.update || this.update.version !== found.version) {
+    } else if (!this.update || this.update.version !== found.version || (!this.update.asset && found.asset)) {
       // unpackaged (development) or no file for this platform: the click opens the release page
       this.set({ ...found, installable: !!found.asset && this.app.isPackaged, status: 'available', progress: 0 });
     }

@@ -30,11 +30,14 @@ function assetFor(assets, platform, arch) {
 
 /**
  * From the GitHub API answer for the latest release: the update to offer, or null.
- * → { version, page, asset: { name, url, size } | null }
+ * → { version, page, asset: { name, url, size } | null (other platforms: the page only) }
  */
 function updateFrom(release, current, platform, arch) {
   if (!release || release.draft || release.prerelease || !isNewer(release.tag_name, current)) return null;
   const asset = assetFor(release.assets, platform, arch);
+  // Windows/macOS: only once the file is there (an older release workflow published the release
+  // while the other build was still uploading; opening the page instead looks broken)
+  if (!asset && (platform === 'win32' || platform === 'darwin')) return null;
   return {
     version: parseVersion(release.tag_name).join('.'),
     page: release.html_url,
