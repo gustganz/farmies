@@ -391,12 +391,17 @@ acquireLock().then((locked) => {
     });
     updater.start();
 
-    // set up / repair the Claude Code hooks on every start
-    ensureHooks().then((status) => {
-      hookStatus = status;
-      debugLog('hooks', JSON.stringify(status));
-      updateTray();
-    });
+    // set up / repair the Claude Code hooks on every start, and hourly: an editor (and its server,
+    // where the companion extension goes) may be installed or updated later, or the install at
+    // start may fail (WSL still starting)
+    const checkHooks = () =>
+      ensureHooks().then((status) => {
+        hookStatus = status;
+        debugLog('hooks', JSON.stringify(status));
+        updateTray();
+      });
+    checkHooks();
+    setInterval(checkHooks, 60 * 60 * 1000);
 
     ipcMain.on('ready', () => {
       sendDisplays();

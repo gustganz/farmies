@@ -31,6 +31,30 @@ function run(cmd, args, timeout = 30000) {
   });
 }
 
+// What the last extension installs printed (the app hides every console): ~/.farmies/extension-install.log
+const INSTALL_LOG = path.join(BASE, 'extension-install.log');
+function runLogged(cmd, args, timeout) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { windowsHide: true, timeout }, (err, stdout, stderr) => {
+      const clean = (t) => String(t || '').replace(/\0/g, '').trim();
+      const entry = [
+        `${new Date().toISOString()} ${[cmd, ...args].join(' ')}`,
+        err ? `failed: ${err.killed ? 'timeout' : `exit ${err.code}`}` : 'ok',
+        clean(stdout),
+        clean(stderr),
+      ].filter(Boolean);
+      try {
+        let old = fs.existsSync(INSTALL_LOG) ? fs.readFileSync(INSTALL_LOG, 'utf8') : '';
+        if (old.length > 20000) old = old.slice(-10000);
+        fs.writeFileSync(INSTALL_LOG, `${old}${entry.join('\n')}\n\n`);
+      } catch {
+        // only diagnostics
+      }
+      resolve(err ? null : stdout);
+    });
+  });
+}
+
 async function findTarget() {
   if (process.platform !== 'win32') return { distro: '', home: os.homedir() };
   const out = await run('wsl.exe', ['-e', 'sh', '-c', 'echo $WSL_DISTRO_NAME:$HOME']);
@@ -99,14 +123,14 @@ async function ensureEditorExtension(target, home) {
       const extDir = path.join(home, server, 'extensions');
       if (!fs.existsSync(extDir) || hasExtension(extDir)) continue;
       const scriptInWsl = `${target.home}/.farmies/install-extension.sh`;
-      if ((await run('wsl.exe', ['-d', target.distro, '-e', 'sh', scriptInWsl, server, toWslPath(VSIX)], 120000)) !== null) {
+      if ((await runLogged('wsl.exe', ['-d', target.distro, '-e', 'sh', scriptInWsl, server, toWslPath(VSIX)], 120000)) !== null) {
         done.push(server);
       }
     }
   } else {
     for (const [dir, cli] of MAC_EDITORS) {
       if (!fs.existsSync(cli) || hasExtension(path.join(os.homedir(), dir, 'extensions'))) continue;
-      if ((await run(cli, ['--install-extension', VSIX, '--force'], 120000)) !== null) done.push(dir);
+      if ((await runLogged(cli, ['--install-extension', VSIX, '--force'], 120000)) !== null) done.push(dir);
     }
   }
   return done;
