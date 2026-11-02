@@ -38,7 +38,7 @@
   // shoulder row (src/poses.js), inset: root moved in from the body's widest edge
   const FRONT_WINGS = {
     up: { angle: 50, length: 12, thickness: 6, shoulder: 0 },
-    out: { angle: 5, length: 12, thickness: 6, shoulder: 1 },
+    out: { angle: 1, length: 12, thickness: 6, shoulder: -2, inset: 1 },
   };
 
   // raised wings, '#' outline, 'e' feather, 'f' light shade, 'd' dark shade (palette of the chicken)
