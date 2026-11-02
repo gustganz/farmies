@@ -11,6 +11,10 @@ const DISMISSED_FILE = path.join(os.homedir(), '.farmies', 'dismissed.json');
 // it (answering or cancelling in Claude; cancelling fires no hook). Grace for the entry Claude
 // writes right around the request itself (the hook's time is in whole seconds).
 const TRANSCRIPT_GRACE = 3000;
+// A finished (or failed) session counts as handled once the transcript has a new message after it:
+// the user went on in the session (a prompt, a slash command, an answer), even where no hook fires.
+// Only the end of the transcript is read; entries are one JSON object per line.
+const TRANSCRIPT_TAIL = 256 * 1024;
 const SHOW_MAX_AGE = 24 * 3600 * 1000;
 const DELETE_AGE = 7 * 24 * 3600 * 1000;
 const POLL_MS = 1000;
@@ -58,11 +62,48 @@ function installHome() {
   return home;
 }
 
+// Time of the newest message at the end of a transcript (0: none or unreadable): from the user or
+// Claude, or a slash command like /model (newer Claude Code logs those as system entries). Other
+// system entries (hook summaries, turn times), summaries and titles are not someone going on.
+function lastMessageTime(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size;
+    const length = Math.min(size, TRANSCRIPT_TAIL);
+    const buf = Buffer.alloc(length);
+    fs.readSync(fd, buf, 0, length, size - length);
+    const lines = buf.toString('utf8').split('\n');
+    if (length < size) lines.shift(); // cut in the middle
+    for (let i = lines.length - 1; i >= 0; i--) {
+      if (!lines[i].trim()) continue;
+      let entry;
+      try {
+        entry = JSON.parse(lines[i]);
+      } catch {
+        continue; // being written
+      }
+      const message =
+        entry.type === 'user' || entry.type === 'assistant' || (entry.type === 'system' && entry.subtype === 'local_command');
+      if (!message) continue;
+      const t = Date.parse(entry.timestamp);
+      if (t) return t;
+    }
+  } catch {
+    // gone or not reachable
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+  return 0;
+}
+
 class Sessions extends EventEmitter {
   constructor() {
     super();
     this.cache = new Map();
     this.dismissed = new Map();
+    // transcript checks: "file|ts" → { mtime, found }
+    this.messages = new Map();
     try {
       this.dismissed = new Map(Object.entries(JSON.parse(fs.readFileSync(DISMISSED_FILE, 'utf8'))));
     } catch {
@@ -138,9 +179,9 @@ class Sessions extends EventEmitter {
     }
     if (NEEDS_USER_STATES.includes(state) && (this.dismissed.get(d.session_id) || 0) >= ts) state = 'idle';
     // the transcript lives in WSL too: compared with the hook's own clock
-    if ((state === 'question' || state === 'attention') && this.transcriptChangedSince(d, (Number(d.ts) || 0) * 1000)) {
-      state = 'idle';
-    }
+    const hookTs = (Number(d.ts) || 0) * 1000;
+    if ((state === 'question' || state === 'attention') && this.transcriptChangedSince(d, hookTs)) state = 'idle';
+    if ((state === 'done' || state === 'error') && this.messageSince(d, hookTs)) state = 'idle';
 
     const folder = d.folder || d.cwd || '';
     return {
@@ -169,24 +210,50 @@ class Sessions extends EventEmitter {
     };
   }
 
-  transcriptChangedSince(d, ts) {
+  // The session's transcript as a path the app can read, or ''.
+  transcriptFile(d) {
     // older state files have no transcript path: Claude Code's scheme is
     // ~/.claude/projects/<cwd with / and . replaced by ->/<session id>.jsonl
     const home = installHome();
     const transcript =
       d.transcript || (home && d.cwd ? `${home}/.claude/projects/${d.cwd.replace(/[/.]/g, '-')}/${d.session_id}.jsonl` : '');
-    if (!transcript) return false;
-    d = { ...d, transcript };
+    if (!transcript) return '';
     // the hook runs in WSL on Windows: its paths are reached through \\wsl.localhost
-    const file =
-      process.platform === 'win32' && d.distro
-        ? `\\\\wsl.localhost\\${d.distro}${d.transcript.replace(/\//g, '\\')}`
-        : d.transcript;
+    return process.platform === 'win32' && d.distro
+      ? `\\\\wsl.localhost\\${d.distro}${transcript.replace(/\//g, '\\')}`
+      : transcript;
+  }
+
+  transcriptChangedSince(d, ts) {
+    const file = this.transcriptFile(d);
+    if (!file) return false;
     try {
       return fs.statSync(file).mtimeMs > ts + TRANSCRIPT_GRACE;
     } catch {
       return false;
     }
+  }
+
+  /**
+   * Whether the transcript has a user or assistant message written after ts (the hook's clock, like
+   * the transcript's timestamps). Read only when the file changed; the answer is kept per file time.
+   */
+  messageSince(d, ts) {
+    if (!this.transcriptChangedSince(d, ts)) return false;
+    const file = this.transcriptFile(d);
+    let mtime;
+    try {
+      mtime = fs.statSync(file).mtimeMs;
+    } catch {
+      return false;
+    }
+    const key = `${file}|${ts}`;
+    const known = this.messages.get(key);
+    if (known && known.mtime === mtime) return known.found;
+    const found = lastMessageTime(file) > ts + TRANSCRIPT_GRACE;
+    this.messages.set(key, { mtime, found });
+    if (this.messages.size > 200) this.messages.delete(this.messages.keys().next().value);
+    return found;
   }
 
   get(id) {
@@ -218,4 +285,4 @@ class Sessions extends EventEmitter {
   }
 }
 
-module.exports = { Sessions, DIR, NEEDS_USER_STATES, oneLine, firstSentence };
+module.exports = { Sessions, DIR, NEEDS_USER_STATES, oneLine, firstSentence, lastMessageTime };
