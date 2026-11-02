@@ -38,7 +38,7 @@ const HERD = [
 ];
 
 // buddyApi stub: what src/preload.js offers, fed with the data above instead of IPC
-function stub({ sessions, animal, scale, width, height, month, taskbar = 0 }) {
+function stub({ sessions, animal, scale, width, height, month }) {
   // fixed "randomness": the animal walks and turns around every few seconds
   Math.random = () => 0.3;
   const bytes = (b64) => Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
@@ -52,8 +52,7 @@ function stub({ sessions, animal, scale, width, height, month, taskbar = 0 }) {
     ready: () =>
       setTimeout(() => {
         const bounds = { x: 0, y: 0, width, height };
-        const workArea = { ...bounds, height: height - taskbar };
-        cbs.displays({ displays: [{ id: 1, bounds, workArea }], primary: 1, win: [width, height], position: null });
+        cbs.displays({ displays: [{ id: 1, bounds, workArea: bounds }], primary: 1, win: [width, height], position: null });
         cbs.sprites({ sheets: Object.fromEntries(Object.entries(window.SHEETS).map(([k, v]) => [k, bytes(v)])), animal, scale });
         cbs.sessions(sessions);
         cbs.update(null);
@@ -82,28 +81,71 @@ async function scene(browser, opts) {
   await page.addInitScript(stub, { month: MONTH, scale: 2.5, animal: 'chicken', ...opts });
   await page.goto(RENDERER);
   await page.addStyleTag({ content: `html, body { background: ${BACKDROP}; }` });
-  if (opts.taskbar) {
-    // a taskbar, so it is clear the animal lives at the bottom of the screen
-    await page.addStyleTag({ content: `body::after { content: ''; position: absolute; left: 0; right: 0; bottom: 0; height: ${opts.taskbar}px; background: #1f2a36; box-shadow: 0 -1px 0 #3a4a5c; }` });
-  }
   await page.waitForTimeout(1500);
   return page;
 }
 
+// Pixel barn of the tray icon, drawn behind the animal (scale: screen px per pixel)
+function barnHtml(scale) {
+  const { BARN, COLORS } = require('../src/tray-icon');
+  const rects = BARN.flatMap((row, y) =>
+    [...row].map((c, x) => (COLORS[c] ? `<rect x="${x}" y="${y}" width="1" height="1" fill="rgb(${COLORS[c]})"/>` : '')),
+  ).join('');
+  const n = BARN.length;
+  return `<svg id="barn" viewBox="0 0 ${n} ${n}" width="${n * scale}" height="${n * scale}" shape-rendering="crispEdges">${rects}</svg>`;
+}
+
+// Hero GIF: the chicken walks away from the barn and back, so the last frame leads into the first.
+// Time is driven by Playwright's fake clock: one loop = LOOP_MS, a whole number of walk cycles
+// (4 frames x 140 ms) and hops (1600 ms); half of it each way, so it ends where it started.
+const LOOP_MS = 11200;
+const FRAME_MS = 80;
 async function hero(browser) {
-  // the chicken walks along with its bubbles while one session still works
+  const W = 600;
+  const H = 160;
+  const GROUND = 14; // grass strip below the animal
   const sessions = [HERD[0], HERD[2], HERD[3], HERD[4]];
-  const page = await scene(browser, { sessions, width: 720, height: 210, scale: 3, taskbar: 28 });
+  const page = await browser.newPage({ viewport: { width: W, height: H }, deviceScaleFactor: 1 });
+  const start = new Date(2026, MONTH, 15, 10).getTime();
+  await page.clock.install({ time: start });
+  await page.clock.pauseAt(start + 100); // time only moves with runFor
+  await page.addInitScript(`window.SHEETS = ${JSON.stringify(sheets)};`);
+  await page.addInitScript(stub, { month: MONTH, scale: 3, animal: 'chicken', sessions, width: W, height: H - GROUND });
+  await page.goto(RENDERER);
+  await page.addStyleTag({
+    content: `html { background: linear-gradient(180deg, #8fb8de 0%, #c4dbee 100%) top / 100% calc(100% - ${GROUND}px) no-repeat,
+        linear-gradient(180deg, #4f8a35 0 3px, #6aa443 3px 100%); }
+      body { position: relative; height: calc(100% - ${GROUND}px); background: transparent; }
+      #barn { position: absolute; left: 70px; bottom: 0; }`,
+  });
+  await page.evaluate((svg) => document.body.insertAdjacentHTML('afterbegin', svg), barnHtml(5));
+  for (let i = 0; i < 40 && !(await page.evaluate(() => typeof animal !== 'undefined' && !!animal)); i++) {
+    await page.clock.runFor(50);
+    await page.waitForTimeout(50);
+  }
+  // walk, turning around every half loop (instead of the random choice of src/renderer)
+  await page.evaluate((half) => {
+    window.chooseMode = (now) => {
+      hen.mode = 'walk';
+      hen.dir *= -1;
+      hen.until = now + half;
+    };
+  }, LOOP_MS / 2);
+  // past the first sit; start the loop exactly at a turn
+  await page.clock.runFor(1500);
+  const turn = await page.evaluate(() => hen.until - performance.now());
+  await page.clock.runFor(Math.ceil(turn) + 1);
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-hero-'));
-  for (let i = 0; i < 96; i++) {
-    await page.screenshot({ path: path.join(dir, `f${String(i).padStart(3, '0')}.png`) });
-    await page.waitForTimeout(70);
+  const frames = LOOP_MS / FRAME_MS;
+  for (let i = 0; i < frames; i++) {
+    await page.screenshot({ path: path.join(dir, `f${String(i).padStart(3, '0')}.png`), animations: 'disabled' });
+    await page.clock.runFor(FRAME_MS);
   }
   await page.close();
   const gif = path.join(OUT, 'hero.gif');
   execFileSync('ffmpeg', [
-    '-y', '-loglevel', 'error', '-framerate', '12', '-i', path.join(dir, 'f%03d.png'),
-    '-vf', 'split[a][b];[a]palettegen=max_colors=64[p];[b][p]paletteuse=dither=none', '-loop', '0', gif,
+    '-y', '-loglevel', 'error', '-framerate', String(1000 / FRAME_MS), '-i', path.join(dir, 'f%03d.png'),
+    '-vf', 'split[a][b];[a]palettegen=max_colors=64:stats_mode=full[p];[b][p]paletteuse=dither=none', '-loop', '0', gif,
   ]);
   fs.rmSync(dir, { recursive: true });
   console.log(gif);

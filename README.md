@@ -4,7 +4,7 @@
 
 **Ein kleines Pixel-Tier am Bildschirmrand, das dir Bescheid gibt,<br>wenn Claude Code auf dich wartet.**
 
-<img src="docs/img/hero.gif" alt="Ein Huhn läuft am unteren Bildschirmrand, über dem Kopf Sprechblasen" width="720">
+<img src="docs/img/hero.gif" alt="Ein Huhn läuft vor einer kleinen Scheune hin und her, über dem Kopf Sprechblasen" width="600">
 
 [![Neueste Version](https://img.shields.io/github/v/release/gustganz/farmies?label=Version&color=3f8f2f)](https://github.com/gustganz/farmies/releases/latest)
 ![Windows](https://img.shields.io/badge/Windows-0078d4?logo=windows&logoColor=white)
