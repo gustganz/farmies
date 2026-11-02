@@ -52,6 +52,8 @@ only bump the version on main after Gust's OK for the release.
 
 ## Rules learned the hard way
 
+- A release must be complete when it becomes public: `release.yml` creates it as a draft and publishes
+  it only after all files are uploaded (installed apps update the moment they see it).
 - Never rename release assets (`Farmies-<v>-portable.exe`, `Farmies-<v>-mac-<arch>.zip`): installed
   versions look for these names. Keep the updater able to update from older versions.
 - Every file the app loads must be in `build.files` (package.json); a test checks relative requires.

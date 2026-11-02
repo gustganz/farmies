@@ -34,12 +34,23 @@ jobs:
           if [ "$GITHUB_REF_TYPE" = tag ]; then
             test "$tag" = "$GITHUB_REF_NAME" || { echo "tag $GITHUB_REF_NAME != package.json $tag"; exit 1; }
             echo "release=true" >> "$GITHUB_OUTPUT"
-          elif gh release view "$tag" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+          elif [ "$(gh release view "$tag" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null)" = false ]; then
+            # (a draft left by a failed run is built and uploaded again)
             echo "$tag is already released"
             echo "release=false" >> "$GITHUB_OUTPUT"
           else
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
+      # Created once, here, as a draft: the builds upload into it, "publish" makes it public (and
+      # creates the tag on this commit) only when all files are there, since installed apps update
+      # as soon as they see a published release.
+      - if: steps.v.outputs.release == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.v.outputs.tag }}
+        run: |
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1 ||
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" --title "Farmies ${TAG#v}" --generate-notes
 
   build:
     needs: check
@@ -79,6 +90,13 @@ jobs:
         run: |
           shopt -s nullglob
           files=(dist/Farmies-*-portable.exe dist/Farmies-*-mac-*.zip)
-          # both jobs try to create the release (and the tag, on this commit), the second one finds it
-          gh release create "$TAG" --target "$GITHUB_SHA" --title "Farmies ${TAG#v}" --generate-notes || true
           gh release upload "$TAG" "${files[@]}" --clobber
+
+  publish:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    steps:
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --latest

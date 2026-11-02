@@ -42,6 +42,9 @@ test('updateFrom offers only newer, published releases', () => {
   assert.strictEqual(updateFrom(release, '0.2.0', 'win32', 'x64'), null);
   assert.strictEqual(updateFrom({ ...release, draft: true }, '0.1.0', 'win32', 'x64'), null);
   assert.strictEqual(updateFrom({ ...release, prerelease: true }, '0.1.0', 'win32', 'x64'), null);
-  // newer, but no file for this platform: still offered (opens the release page)
-  assert.strictEqual(updateFrom({ ...release, assets: [] }, '0.1.0', 'win32', 'x64').asset, null);
+  // newer, but the file for Windows/macOS not uploaded yet: not offered until it is
+  assert.strictEqual(updateFrom({ ...release, assets: [] }, '0.1.0', 'win32', 'x64'), null);
+  assert.strictEqual(updateFrom({ ...release, assets: assets.slice(0, 1) }, '0.1.0', 'darwin', 'arm64'), null);
+  // other platforms: offered without a file (opens the release page)
+  assert.strictEqual(updateFrom({ ...release, assets: [] }, '0.1.0', 'linux', 'x64').asset, null);
 });
