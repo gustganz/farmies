@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, net, screen } = require('electron');
+const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, net, screen, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const { Sessions, NEEDS_USER_STATES } = require('./sessions');
@@ -11,6 +11,7 @@ const autostart = require('./autostart');
 const { uninstall } = require('./uninstall');
 const { ensureHooks, recheckEditorExtension, hookHome } = require('./hooks');
 const { WtTabs } = require('./wt-tabs');
+const problems = require('./problems');
 const { Updater } = require('./updater');
 
 // The hen lives in a small transparent window that the renderer moves around (also across
@@ -150,6 +151,27 @@ function setScale(value) {
 function showMessageBox(options) {
   if (process.platform === 'darwin') app.focus({ steal: true });
   return dialog.showMessageBox(options);
+}
+
+/** A problem the user should know about (see problems.js), with a button to report it on GitHub. */
+async function showProblem(problem) {
+  const buttons = problem.issue ? ['Auf GitHub melden …', 'Schließen'] : ['OK'];
+  const { response } = await showMessageBox({ type: 'warning', title: 'Farmies', message: problem.message, detail: problem.detail, buttons, defaultId: 0, cancelId: buttons.length - 1, noLink: true });
+  if (problem.issue && response === 0) shell.openExternal(problems.issueUrl(problem.issue.title, problem.issue.body));
+}
+
+// The companion extension: installed at start and checked again every few minutes. Still failing
+// on the second try (the first may just meet WSL starting up): tell the user, once per run.
+let extensionFailures = 0;
+let extensionReported = false;
+async function checkEditorExtension() {
+  const { failed } = await recheckEditorExtension();
+  debugLog('extension', JSON.stringify(failed));
+  extensionFailures = failed.length ? extensionFailures + 1 : 0;
+  if (extensionFailures >= 2 && !extensionReported) {
+    extensionReported = true;
+    showProblem(problems.extensionInstallFailed(failed, app.getVersion()));
+  }
 }
 
 function showAbout() {
@@ -396,9 +418,9 @@ acquireLock().then((locked) => {
       hookStatus = status;
       debugLog('hooks', JSON.stringify(status));
       updateTray();
+      checkEditorExtension();
+      setInterval(checkEditorExtension, 5 * 60 * 1000);
     });
-    // the companion extension again every few minutes, in case it is missing (see hooks.js)
-    setInterval(recheckEditorExtension, 5 * 60 * 1000);
 
     ipcMain.on('ready', () => {
       sendDisplays();
@@ -421,7 +443,9 @@ acquireLock().then((locked) => {
       const s = sessions.get(id);
       if (!s) return;
       sessions.dismiss(id);
-      focusSession(s, wtTabs.tabFor(s.id));
+      focusSession(s, wtTabs.tabFor(s.id)).then((result) => {
+        if (result && result.windows) showProblem(problems.windowNotFound(s, result.windows, app.getVersion()));
+      });
     });
     ipcMain.on('dismiss-all', () => sessions.dismissAll());
     ipcMain.on('install-update', () => updater.install());

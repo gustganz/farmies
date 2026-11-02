@@ -31,6 +31,17 @@ function run(cmd, args, timeout = 30000) {
   });
 }
 
+/** Everything a command printed, for a problem report. */
+function runOutput(cmd, args, timeout) {
+  return new Promise((resolve) => {
+    execFile(cmd, args, { windowsHide: true, timeout }, (err, stdout, stderr) => {
+      const text = [stdout, stderr].map((t) => String(t || '').replace(/\0/g, '').trim()).filter(Boolean);
+      if (err) text.push(err.killed ? 'timeout' : `exit code ${err.code}`);
+      resolve(text.join('\n'));
+    });
+  });
+}
+
 async function findTarget() {
   if (process.platform !== 'win32') return { distro: '', home: os.homedir() };
   const out = await run('wsl.exe', ['-e', 'sh', '-c', 'echo $WSL_DISTRO_NAME:$HOME']);
@@ -82,19 +93,21 @@ const hasExtension = (dir) => {
 };
 
 /**
- * Installs or updates the companion extension where it is missing. Returns the editors updated.
+ * Installs or updates the companion extension where it is missing. Returns { done, failed }: the
+ * editors updated, and the ones where it did not work, as { editor, output }.
  * Cheap when nothing is missing (directory listings only), so it runs again now and then: an editor
  * may be installed or updated later, or an install may fail (WSL still starting, server busy).
  */
 async function ensureEditorExtension(target, home) {
-  if (!fs.existsSync(VSIX)) return [];
   const done = [];
+  const failed = [];
+  if (!fs.existsSync(VSIX)) return { done, failed: [{ editor: 'alle', output: `missing: ${VSIX}` }] };
   if (process.platform === 'win32') {
     const missing = WSL_SERVERS.filter((server) => {
       const extDir = path.join(home, server, 'extensions');
       return fs.existsSync(extDir) && !hasExtension(extDir);
     });
-    if (!missing.length) return done;
+    if (!missing.length) return { done, failed };
     // The server CLI has to run inside WSL. The package is copied into the WSL home first, so
     // nothing but fixed short arguments goes through wsl.exe: the app's own path is in the Windows
     // temp folder and may contain spaces ("C:\Users\First Last\...").
@@ -110,19 +123,21 @@ async function ensureEditorExtension(target, home) {
     );
     const scriptInWsl = `${target.home}/.farmies/install-extension.sh`;
     for (const server of missing) {
-      await run('wsl.exe', ['-d', target.distro, '-e', 'sh', scriptInWsl, server], 120000);
+      const output = await runOutput('wsl.exe', ['-d', target.distro, '-e', 'sh', scriptInWsl, server], 120000);
       // counts only once it is really there
       if (hasExtension(path.join(home, server, 'extensions'))) done.push(server);
+      else failed.push({ editor: server, output });
     }
   } else {
     for (const [dir, cli] of MAC_EDITORS) {
       const extDir = path.join(os.homedir(), dir, 'extensions');
       if (!fs.existsSync(cli) || hasExtension(extDir)) continue;
-      await run(cli, ['--install-extension', VSIX, '--force'], 120000);
+      const output = await runOutput(cli, ['--install-extension', VSIX, '--force'], 120000);
       if (hasExtension(extDir)) done.push(dir);
+      else failed.push({ editor: dir, output });
     }
   }
-  return done;
+  return { done, failed };
 }
 
 let extensionRun = null;
@@ -133,8 +148,8 @@ function recheckEditorExtension() {
     try {
       const target = JSON.parse(fs.readFileSync(path.join(BASE, 'install.json'), 'utf8'));
       return await ensureEditorExtension(target, hostPath(target, target.home));
-    } catch {
-      return [];
+    } catch (e) {
+      return { done: [], failed: [{ editor: 'alle', output: e.message }] };
     } finally {
       extensionRun = null;
     }
@@ -142,7 +157,7 @@ function recheckEditorExtension() {
   return extensionRun;
 }
 
-/** Returns { ok, added, editors } or { ok: false, reason }. */
+/** Returns { ok, added } or { ok: false, reason }. The extension: recheckEditorExtension(). */
 async function ensureHooks() {
   try {
     const target = await findTarget();
@@ -161,13 +176,7 @@ async function ensureHooks() {
     writeIfChanged(path.join(BASE, 'install.json'), `${JSON.stringify(target)}\n`);
 
     const added = addHooks(path.join(home, '.claude', 'settings.json'), HOOK_CMD);
-    let editors = [];
-    try {
-      editors = await ensureEditorExtension(target, home);
-    } catch {
-      // without the extension the editor window is still focused, just not the terminal
-    }
-    return { ok: true, added, editors };
+    return { ok: true, added };
   } catch (e) {
     return { ok: false, reason: e.message };
   }

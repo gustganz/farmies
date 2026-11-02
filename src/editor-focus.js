@@ -54,4 +54,4 @@ function editorWindowFor(home, pids) {
   return null;
 }
 
-module.exports = { focusedTerminalPids, editorWindowFor };
+module.exports = { editorWindows, focusedTerminalPids, editorWindowFor };

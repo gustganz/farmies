@@ -14,7 +14,11 @@
   Windsurf (Begleit-Erweiterung in `extension/`, wird automatisch installiert), JetBrains (Fenster),
   macOS (Terminal.app und iTerm über das TTY, sonst die App). Editor-Fenster werden über die
   Shell-PIDs ihrer Terminals gefunden, die die Erweiterung meldet, nicht über den Ordner der Session:
-  Claude kann in einem anderen Ordner laufen als dem Workspace des Fensters.
+  Claude kann in einem anderen Ordner laufen als dem Workspace des Fensters. Findet ein Klick das
+  Fenster nicht, öffnet Farmies kein neues, sondern zeigt einen Hinweis (alte Erweiterung: Fenster neu
+  laden) oder einen Fehler mit vorausgefülltem GitHub-Issue (`src/problems.js`). Die Erweiterung wird
+  beim Start und alle 5 Minuten geprüft; scheitert die Installation zweimal, kommt ebenfalls ein Fehler
+  mit Issue-Link.
 - Eine Blase gilt als gesehen, wenn der User im Tab/Terminal der Session bleibt (`src/seen-by-focus.js`):
   5 s, wenn der Fokus nach der Blase dorthin kam, 60 s, wenn er die ganze Zeit dort war. Windows
   Terminal: `wt-watch.ps1` meldet den ausgewählten Tab des Vordergrundfensters; VS Code-Familie: die

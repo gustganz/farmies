@@ -6,7 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { scriptPath } = require('./wt-tabs');
 const { hookHome } = require('./hooks');
-const { editorWindowFor } = require('./editor-focus');
+const { editorWindows, editorWindowFor } = require('./editor-focus');
 
 // VS Code family: Windows process, CLI, macOS bundle id
 const EDITORS = {
@@ -79,29 +79,23 @@ function itermScript(tty) {
   );
 }
 
-// Editors: the window that holds the session's terminal, as the companion extension reports it,
-// else the session's own folder (right unless Claude was started in another folder than the
-// window's workspace).
-function editorTarget(s) {
-  const win = editorWindowFor(hookHome(), s.pids);
-  if (win) return { title: win.name, folder: win.folder || s.folder || s.cwd };
-  return { title: s.project, folder: s.folder || s.cwd };
-}
-
+// Editors: the window that holds the session's terminal, as the companion extension reports it.
+// Without it the session's own folder names the window, which is wrong when Claude was started in
+// another folder than the window's workspace. Opening that folder would start a new window, so
+// then the click says it found nothing (result { windows }, see problems.js) instead.
 async function focusWindows(s, tabId) {
   const editor = EDITORS[s.term];
   if (editor) {
     requestEditorTerminal(s);
-    const { title, folder } = editorTarget(s);
-    if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', title])) return true;
-    // Not found by title (extension missing or not reloaded yet, session in another folder): the
-    // session runs in a terminal of this editor, so it is open. Opening the folder would start a
-    // new window: bring the editor's last used window instead (the terminal still shows itself if
-    // the extension runs there).
-    if (await powershell('focus-window.ps1', ['-Exe', editor.exe])) return true;
-    // editor not running at all: let it open the folder
-    const args = s.distro ? ['--folder-uri', `vscode-remote://wsl+${s.distro}${folder}`] : [folder];
-    return run(editor.cli, args.map((a) => `"${a}"`), { shell: true });
+    const win = editorWindowFor(hookHome(), s.pids);
+    if (win) {
+      if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', win.name])) return true;
+      // title not as expected: the folder is open in that window, so the editor focuses it
+      if (win.folder) return run(editor.cli, editorFolderArgs(s, win.folder), { shell: true });
+    } else if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', s.project])) {
+      return true;
+    }
+    return { windows: editorWindows(hookHome()) };
   }
   if (s.term === 'jetbrains') return powershell('focus-window.ps1', ['-Exe', JETBRAINS_EXES, '-Title', s.project]);
   // Windows Terminal (also the fallback): the tab id wt-tabs.js learned, else the title marker
@@ -109,12 +103,16 @@ async function focusWindows(s, tabId) {
   return powershell('focus-wt.ps1', ['-TabId', tabId || '', '-Marker', `(!) ${s.project} #${s.id.slice(0, 4)}`, '-Fallback', `(!) ${s.project}`]);
 }
 
+const editorFolderArgs = (s, folder) =>
+  (s.distro ? ['--folder-uri', `vscode-remote://wsl+${s.distro}${folder}`] : [folder]).map((a) => `"${a}"`);
+
 async function focusMac(s) {
   const folder = s.folder || s.cwd;
   const editor = EDITORS[s.term];
   if (editor) {
     requestEditorTerminal(s);
-    return run('open', ['-b', s.app || editor.bundle, editorTarget(s).folder]);
+    const win = editorWindowFor(hookHome(), s.pids);
+    return run('open', ['-b', s.app || editor.bundle, (win && win.folder) || folder]);
   }
   const tty = s.tty.replace(/[^a-z0-9]/gi, '');
   if (s.term === 'apple-terminal' && tty) return run('osascript', ['-e', appleTerminalScript(`/dev/${tty}`)]);
@@ -124,6 +122,7 @@ async function focusMac(s) {
   return run('open', ['-a', 'Terminal']);
 }
 
+/** true if focused; { windows } if the session's editor window was not found. */
 function focusSession(s, tabId) {
   if (process.platform === 'win32') return focusWindows(s, tabId);
   if (process.platform === 'darwin') return focusMac(s);

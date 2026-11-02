@@ -4,7 +4,7 @@
 // terminals run in (WSL or this machine); `pids` are the session's process ancestors. Every editor
 // window checks its terminals; the one whose shell is among them shows itself.
 // Only changes of the file count (no clock comparison: the WSL clock may drift from Windows).
-// Each window keeps ~/.farmies/editor-focus/<pid>.json up to date: { pid, shells, name, folder }.
+// Each window keeps ~/.farmies/editor-focus/<pid>.json up to date: { pid, shells, name, folder, version }.
 // pid: the active terminal's shell while the window has the focus, else 0; the app marks a bubble
 // as seen when the user stays in that terminal (see src/seen-by-focus.js). shells: the shell pids
 // of all terminals, name/folder: the workspace; with them the app finds the window of a session
@@ -46,7 +46,13 @@ function activate(context) {
     const pid = (terminal && (await terminal.processId)) || 0;
     const shells = (await Promise.all(vscode.window.terminals.map((t) => t.processId))).filter(Boolean);
     const first = (vscode.workspace.workspaceFolders || [])[0];
-    const data = JSON.stringify({ pid, shells, name: vscode.workspace.name || '', folder: first ? first.uri.fsPath : '' });
+    const data = JSON.stringify({
+      pid,
+      shells,
+      name: vscode.workspace.name || '',
+      folder: first ? first.uri.fsPath : '',
+      version: context.extension.packageJSON.version,
+    });
     if (data === written) return;
     try {
       fs.mkdirSync(FOCUS_DIR, { recursive: true });
