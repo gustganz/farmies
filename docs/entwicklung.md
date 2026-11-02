@@ -12,11 +12,14 @@
   Sprechblasen und ihren Bogen; `src/meadow.js` die Wiese, die jeden Monat anders aussieht.
 - Klick auf eine Blase holt die Session nach vorne: Windows Terminal (richtiger Tab), Cursor, VS Code,
   Windsurf (Begleit-Erweiterung in `extension/`, wird automatisch installiert), JetBrains (Fenster),
-  macOS (Terminal.app und iTerm über das TTY, sonst die App).
+  macOS (Terminal.app und iTerm über das TTY, sonst die App). Editor-Fenster werden über die
+  Shell-PIDs ihrer Terminals gefunden, die die Erweiterung meldet, nicht über den Ordner der Session:
+  Claude kann in einem anderen Ordner laufen als dem Workspace des Fensters.
 - Eine Blase gilt als gesehen, wenn der User im Tab/Terminal der Session bleibt (`src/seen-by-focus.js`):
   5 s, wenn der Fokus nach der Blase dorthin kam, 60 s, wenn er die ganze Zeit dort war. Windows
   Terminal: `wt-watch.ps1` meldet den ausgewählten Tab des Vordergrundfensters; VS Code-Familie: die
-  Erweiterung schreibt `~/.farmies/editor-focus/<pid>.json` (Shell-PID des aktiven Terminals).
+  Erweiterung schreibt `~/.farmies/editor-focus/<pid>.json` (Shell-PID des aktiven Terminals, alle
+  Terminal-Shells, Workspace-Name und -Ordner).
 - Updates: die App schaut kurz nach dem Start und dann stündlich nach einem neuen GitHub-Release
   (`src/updater.js`). Autostart: Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (`com.gustganz.farmies`), macOS `~/Library/LaunchAgents/com.gustganz.farmies.plist`.

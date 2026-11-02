@@ -6,6 +6,7 @@ const fs = require('fs');
 const path = require('path');
 const { scriptPath } = require('./wt-tabs');
 const { hookHome } = require('./hooks');
+const { editorWindowFor } = require('./editor-focus');
 
 // VS Code family: Windows process, CLI, macOS bundle id
 const EDITORS = {
@@ -78,12 +79,21 @@ function itermScript(tty) {
   );
 }
 
+// Editors: the window that holds the session's terminal, as the companion extension reports it,
+// else the session's own folder (right unless Claude was started in another folder than the
+// window's workspace).
+function editorTarget(s) {
+  const win = editorWindowFor(hookHome(), s.pids);
+  if (win) return { title: win.name, folder: win.folder || s.folder || s.cwd };
+  return { title: s.project, folder: s.folder || s.cwd };
+}
+
 async function focusWindows(s, tabId) {
-  const folder = s.folder || s.cwd;
   const editor = EDITORS[s.term];
   if (editor) {
     requestEditorTerminal(s);
-    if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', s.project])) return true;
+    const { title, folder } = editorTarget(s);
+    if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', title])) return true;
     // window not found by title: let the editor open/focus the folder
     const args = s.distro ? ['--folder-uri', `vscode-remote://wsl+${s.distro}${folder}`] : [folder];
     return run(editor.cli, args.map((a) => `"${a}"`), { shell: true });
@@ -99,7 +109,7 @@ async function focusMac(s) {
   const editor = EDITORS[s.term];
   if (editor) {
     requestEditorTerminal(s);
-    return run('open', ['-b', s.app || editor.bundle, folder]);
+    return run('open', ['-b', s.app || editor.bundle, editorTarget(s).folder]);
   }
   const tty = s.tty.replace(/[^a-z0-9]/gi, '');
   if (s.term === 'apple-terminal' && tty) return run('osascript', ['-e', appleTerminalScript(`/dev/${tty}`)]);

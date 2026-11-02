@@ -4,9 +4,11 @@
 // terminals run in (WSL or this machine); `pids` are the session's process ancestors. Every editor
 // window checks its terminals; the one whose shell is among them shows itself.
 // Only changes of the file count (no clock comparison: the WSL clock may drift from Windows).
-// Each window keeps ~/.farmies/editor-focus/<pid>.json up to date: { pid } of the active terminal's
-// shell while the window has the focus, else { pid: 0 }. The app marks a bubble as seen when the
-// user stays in that terminal (see src/seen-by-focus.js).
+// Each window keeps ~/.farmies/editor-focus/<pid>.json up to date: { pid, shells, name, folder }.
+// pid: the active terminal's shell while the window has the focus, else 0; the app marks a bubble
+// as seen when the user stays in that terminal (see src/seen-by-focus.js). shells: the shell pids
+// of all terminals, name/folder: the workspace; with them the app finds the window of a session
+// that works in another folder than the window's workspace (see src/editor-focus.js).
 const vscode = require('vscode');
 const fs = require('fs');
 const os = require('os');
@@ -42,11 +44,14 @@ function activate(context) {
   const report = async () => {
     const terminal = vscode.window.state.focused ? vscode.window.activeTerminal : undefined;
     const pid = (terminal && (await terminal.processId)) || 0;
-    if (pid === written) return;
+    const shells = (await Promise.all(vscode.window.terminals.map((t) => t.processId))).filter(Boolean);
+    const first = (vscode.workspace.workspaceFolders || [])[0];
+    const data = JSON.stringify({ pid, shells, name: vscode.workspace.name || '', folder: first ? first.uri.fsPath : '' });
+    if (data === written) return;
     try {
       fs.mkdirSync(FOCUS_DIR, { recursive: true });
-      fs.writeFileSync(FOCUS_FILE, JSON.stringify({ pid }));
-      written = pid;
+      fs.writeFileSync(FOCUS_FILE, data);
+      written = data;
     } catch {
       // not critical
     }
@@ -56,6 +61,8 @@ function activate(context) {
     vscode.window.onDidChangeWindowState(report),
     vscode.window.onDidChangeActiveTerminal(report),
     vscode.window.onDidOpenTerminal(report),
+    vscode.window.onDidCloseTerminal(report),
+    vscode.workspace.onDidChangeWorkspaceFolders(report),
   );
 }
 
