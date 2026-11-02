@@ -17,15 +17,18 @@ const fakeNet = (routes) => ({
 });
 const LATEST = 'https://api.github.com/repos/gustganz/farmies/releases/latest';
 
+// files for every platform: Windows and macOS offer an update only once their file is there
+const ALL_FILES = ['portable.exe', 'mac-arm64.zip', 'mac-x64.zip'].map((f) => ({ name: `Farmies-0.2.0-${f}`, browser_download_url: `https://x/${f}`, size: 1 }));
+
 test('check: announces a newer release once, clears it when gone', async () => {
-  let latest = release('0.2.0');
-  const u = new Updater({ app: fakeApp('0.1.0'), net: fakeNet({ [LATEST]: () => Response.json(latest) }) });
+  let latest = release('0.2.0', ALL_FILES);
+  const u = new Updater({ app: fakeApp('0.1.0', false), net: fakeNet({ [LATEST]: () => Response.json(latest) }) });
   const seen = [];
   u.on('change', (x) => seen.push(x && x.version));
   await u.check();
   await u.check();
   assert.deepStrictEqual(seen, ['0.2.0']);
-  assert.strictEqual(u.update.installable, false, 'no file for this platform');
+  assert.strictEqual(u.update.installable, false, 'unpackaged: opens the release page');
   latest = release('0.1.0');
   await u.check();
   assert.deepStrictEqual(seen, ['0.2.0', null]);

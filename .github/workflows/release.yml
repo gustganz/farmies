@@ -9,6 +9,8 @@ on:
     branches: [main]
     paths: [package.json, .github/workflows/release.yml]
     tags: ['v*']
+  # by hand, e.g. to finish a release whose run failed (a draft is built and uploaded again)
+  workflow_dispatch:
 
 permissions:
   contents: write
