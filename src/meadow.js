@@ -101,16 +101,16 @@
       '..wwwwww.f..........',
       '....ttttkff.........',
       '...trrrrft.ff.......',
-      '..tr.s..frt..ff.....',
-      '.tr..s.fs.rt...f....',
-      '.trss.sf..rt....ff..',
-      '.tr..shs..rt......ff',
-      '.tr..ss.ssrt........',
-      '.tr.s..s..rt........',
-      '..tr...s.rt.........',
+      '..tr....frt..ff.....',
+      '.tr....f..rt...f....',
+      '.tr....f..rt....ff..',
+      '.tr...h...rt......ff',
+      '.tr.......rt........',
+      '.tr.......rt........',
+      '..tr.....rt.........',
       '...trrrrrt..........',
       '....ttttt...........',
-    ], c: {'t':  '#2b2118',  'r':  '#c9c9c9',  's':  '#a8a8a8',  'h':  '#5a5a5a',  'f':  '#2f6fd0',  'k':  '#3a2a1a',  'y':  '#f6c12f',  'b':  '#e84393',  'p':  '#ffffff',  'w':  '#c99a5a',  'd':  '#8a6236'} },
+    ], c: { t: '#2b2118', r: '#c9c9c9', s: '#a8a8a8', h: '#5a5a5a', f: '#2f6fd0', k: '#3a2a1a', y: '#f6c12f', b: '#e84393', p: '#ffffff', w: '#c99a5a', d: '#8a6236' } },
     sunYoung: { s: 1, rows: [
       '..GGG..',
       '.GgggG.',
@@ -124,7 +124,7 @@
       '...sllo',
       '...soo.',
       '...s...',
-    ], c: {'s':  '#2e5a1a',  'l':  '#8fd05a',  'o':  '#2f5f1c',  'g':  '#8fd05a',  'G':  '#2e5a1a'} },
+    ], c: { s: '#2e5a1a', l: '#8fd05a', o: '#2f5f1c', g: '#8fd05a', G: '#2e5a1a' } },
     sunBud: { s: 1, rows: [
       '..YyY..',
       '.YGgGY.',
@@ -139,7 +139,7 @@
       '...sllo',
       '...soo.',
       '...s...',
-    ], c: {'y':  '#f6c12f',  'Y':  '#d99a16',  's':  '#2e5a1a',  'l':  '#8fd05a',  'o':  '#2f5f1c',  'g':  '#8fd05a',  'G':  '#2e5a1a'} },
+    ], c: { y: '#f6c12f', Y: '#d99a16', s: '#2e5a1a', l: '#8fd05a', o: '#2f5f1c', g: '#8fd05a', G: '#2e5a1a' } },
     sunBloom: { s: 1, rows: [
       '..YyyyY..',
       '.yyybyyy.',
@@ -156,7 +156,7 @@
       '....sollo',
       '....s.oo.',
       '....s....',
-    ], c: {'y':  '#f6c12f',  'Y':  '#d99a16',  'b':  '#6b3f1d',  's':  '#2e5a1a',  'l':  '#8fd05a',  'o':  '#2f5f1c'} },
+    ], c: { y: '#f6c12f', Y: '#d99a16', b: '#6b3f1d', s: '#2e5a1a', l: '#8fd05a', o: '#2f5f1c' } },
     umbrella: { s: 1, rows: [
       '.......k.......',
       '....rrrwrrr....',
@@ -171,7 +171,7 @@
       '.......k.......',
       '.......k..k....',
       '........kk.....',
-    ], c: {'k':  '#3a2a1a',  'r':  '#d9302a',  'R':  '#a82418',  'w':  '#f1ece2'} },
+    ], c: { k: '#3a2a1a', r: '#d9302a', R: '#a82418', w: '#f1ece2' } },
     // round bale lying on its side: ringed end face, body to the right
     hay: { s: 1, rows: [
       '....kkkkkkkkkkkkk..',
@@ -205,41 +205,117 @@
     ], c: { k: '#2b1a10', m: '#7a3f22', M: '#a85a32', o: '#c05a1a', g: '#e8902a', f: '#ffc95a', F: '#fff2c0' } },
     // an acorn with its cap
     acorn: { s: 1, rows: [
-      '....k....',
-      '....k....',
-      '..kkkkk..',
-      '.kHhHhHk.',
-      'kHhHhHhHk',
-      'kkkkkkkkk',
-      '.kcclcck.',
-      '.kcclcCk.',
-      '.kcclcCk.',
-      '.kccccCk.',
-      '..kccCk..',
-      '...kCk...',
-      '....k....',
+      '...k...',
+      '.kkkkk.',
+      'kHhHhHk',
+      'kkkkkkk',
+      '.kclCk.',
+      '.kclCk.',
+      '.kccCk.',
+      '..kCk..',
+      '...k...',
     ], c: { k: '#3a1a0a', H: '#8a6a3a', h: '#b8955a', c: '#b8722e', l: '#e0a868', C: '#7a4418' } },
     pumpkinFace: { rows: ['...sl..', '.OoOoO.', 'OoyoyoO', 'OoooooO', 'OoyyyoO', '.OoOoO.'], c: { s: '#5a4a1d', l: '#5c9a3a', o: '#e8862a', O: '#b8601a', y: '#ffd76a' } },
     // drawn 1:1 (s: 1), finer than the other props; tilted to the right, lying on the ground
     mapleLeaf: { s: 1, rows: [
-      '...........k.....',
-      '....k..kk.kdk....',
-      '...kdkkodkodk....',
-      '...kdooooovdkk...',
-      '....kovoovvoodk..',
-      '.kkkkovoovoodk...',
-      'kddoooovovoodkkk.',
-      '.kkdooovvovvvoddk',
-      '...kooovvvvoodkk.',
-      '..kdddovoooodk...',
-      '...kkkovdooodk...',
-      '.....kvvkdodddk..',
-      '......vk.kdkkkdk.',
-      '.....vv...k...k..',
-      '.....v...........',
+      '.......k.k.....',
+      '....k.kdkdk....',
+      '...kdkooovkkk..',
+      '...kovoovvkodk.',
+      '.kkkovoovoodk..',
+      'kdoooovovodkkk.',
+      '.kdooovvovvvddk',
+      '..kooovvvvodkk.',
+      '.kdddovooodk...',
+      '..kkkdvdooddk..',
+      '.....vkkddkddk.',
+      '.....v..kdkkk..',
+      '....vv...k.....',
+      '....v..........',
     ], c: { k: '#6b3414', o: '#c8682a', d: '#a8501e', v: '#7a3a16' } },
     leafPile: { rows: ['..o.r.', 'robboo', 'obrrob'], c: { o: '#d9822a', r: '#b5452a', b: '#8a5a2a' } },
     snowball: { rows: ['.wwg.', 'wwwwg', 'wwwgg', '.ggg.'], c: { w: '#ffffff', g: '#b9c4cb' } },
+  };
+
+  // ---- props come alive: small animations, drawn every frame while the meadow is visible ---------
+  // Something that happens now and then: in some periods (not every one, so it feels irregular), for
+  // `dur` seconds at the start of the period. Returns the seconds into that moment, or -1.
+  function sometimes(t, period, dur, seed) {
+    const k = Math.floor(t / period);
+    const u = t - k * period;
+    return hash(k * 7.13 + seed) < 0.6 && u < dur ? u : -1;
+  }
+  // one of the colours, changing several times a second at random (candle light)
+  const flicker = (t, seed, colors) => colors[Math.floor(hash(Math.floor(t * 7) + seed) * colors.length)];
+  // flowers sway: their top rows (the blossom) lean 1 meadow px to the left or right
+  const SWAY = { snowdrop: 3, crocus: 3, tulipRed: 3, tulipYellow: 3, daisy: 3, dandelion: 3, poppy: 3, cornflower: 3, chamomile: 3, aster: 3, hellebore: 3, sunYoung: 3, sunBud: 4, sunBloom: 7 };
+  const swayOf = (t, i) => Math.round(Math.sin(t * 1.4 + i * 2.1) * 0.8);
+  // the star on the tree twinkles: brighter, then with three small rays
+  const twinkle = (t, fl) => {
+    const u = sometimes(t, 4, 0.8, 2);
+    if (u < 0) return null;
+    const sx = fl.rows[1].indexOf('YYY') + 1;
+    const ray = '#ffffff';
+    return { c: { ...fl.c, Y: '#fff6c8' }, extra: u < 0.25 || u > 0.6 ? [] : [[sx, -2, ray], [sx - 3, 1, ray], [sx + 3, 1, ray]] };
+  };
+  const SNOWMAN_LEFT = ['..kkk..', '.kkkkk.', '.kwkww.', 'oowwww.', '.rrrrr.', 'wwwkwwg', '.wwwwg.'];
+  const SNOWMAN_FRONT = ['..kkk..', '.kkkkk.', '.wkwkw.', '.wwoww.', '.rrrrr.', 'wwwkwwg', '.wwwwg.'];
+  const UMBRELLA_HALF = [
+    '.......k.......',
+    '......rrr......',
+    '.....rwrwr.....',
+    '....rrwrwrr....',
+    '....rRrrrRr....',
+    '...R..RkR..R...',
+  ];
+  const UMBRELLA_SHUT = [
+    '.......k.......',
+    '.......r.......',
+    '......rrr......',
+    '......rwr......',
+    '......rrR......',
+    '......rwR......',
+  ];
+  const BIKE_HUB = { x: 6, y: 9, r: 5 };
+  const ANIM = {
+    tree: twinkle,
+    treeGifts: twinkle,
+    // the snowman looks around now and then: over the front to the left and back
+    snowman: (t) => {
+      const u = sometimes(t, 9, 3, 1);
+      if (u < 0) return null;
+      return { rows: u < 0.3 || u > 2.7 ? SNOWMAN_FRONT : SNOWMAN_LEFT };
+    },
+    // the umbrella folds up for a while, then opens again
+    umbrella: (t, fl) => {
+      const u = sometimes(t, 25, 8, 3);
+      if (u < 0) return null;
+      const top = u < 0.2 || u > 7.8 ? UMBRELLA_HALF : UMBRELLA_SHUT;
+      return { rows: [...top, ...fl.rows.slice(top.length)] };
+    },
+    // the spokes: now and then the front wheel turns two rounds, slowing down
+    bike: (t, fl) => {
+      const u = sometimes(t, 15, 2.5, 4);
+      const turn = u < 0 ? 0 : 4 * Math.PI * (1 - (1 - u / 2.5) ** 2);
+      const { x, y, r } = BIKE_HUB;
+      const extra = [];
+      for (let a = 0; a < 6; a++) {
+        const ang = turn + (a * Math.PI) / 3 + Math.PI / 12;
+        for (let d = 1; d < r - 1; d++) {
+          const px = Math.round(x + Math.cos(ang) * d);
+          const py = Math.round(y + Math.sin(ang) * d);
+          if (fl.rows[py][px] === '.') extra.push([px, py, fl.c.s]);
+        }
+      }
+      return { extra };
+    },
+    lantern: (t, fl) => ({ c: { ...fl.c, f: flicker(t, 1, ['#ffc95a', '#ffb347', '#ffd97a']), F: flicker(t, 2, ['#fff2c0', '#ffe08a', '#ffffff']), g: flicker(t, 3, ['#e8902a', '#d9792a', '#e8902a']) } }),
+    pumpkinFace: (t, fl) => ({ c: { ...fl.c, y: flicker(t, 4, ['#ffd76a', '#ffb84a', '#fff0a0', '#ffd76a']) } }),
+    // a gust of wind: the leaf twitches by one pixel, twice, and lies still again
+    mapleLeaf: (t) => {
+      const u = sometimes(t, 7, 0.5, 6);
+      return u >= 0 && (u < 0.12 || (u > 0.25 && u < 0.37)) ? { dx: 1, dy: u < 0.12 ? -1 : 0 } : null;
+    },
   };
 
   // A new Farmies version: a hanging sign (like an inn's) in the corner instead of the month's props,
@@ -624,7 +700,18 @@
       const s = fl.s || S;
       const rows = fl.rows.slice(0, Math.floor(15 / s)); // at most 15 meadow px high
       x = fl.peek ? W - rows[0].length * s : x - rows[0].length * s;
-      put(ctx, rows, fl.c, x, GROUND_Y + 1 - rows.length * s - (fl.peek ? 0 : LIFT[i]), false, s);
+      const y = GROUND_Y + 1 - rows.length * s - (fl.peek ? 0 : LIFT[i]);
+      const fr = (ANIM[f] && ANIM[f](time, fl)) || {};
+      const shown = fr.rows || rows;
+      const px = x + (fr.dx || 0);
+      const py = y + (fr.dy || 0);
+      const top = SWAY[f] || 0;
+      put(ctx, shown.slice(0, top), fr.c || fl.c, px + swayOf(time, i), py, false, s);
+      put(ctx, shown.slice(top), fr.c || fl.c, px, py + top * s, false, s);
+      for (const [ex, ey, color] of fr.extra || []) {
+        ctx.fillStyle = color;
+        ctx.fillRect(px + ex * s, py + ey * s, s, s);
+      }
       x -= 3;
     });
   }
@@ -752,7 +839,7 @@
     });
   }
 
-  const api = { W, H, ZONE, REST_X, SIGN, SIGN_BOX, MONTHS, CYCLE, animalsOf, ANIMALS, FLOWERS, Meadow, drawGround, renderStatic };
+  const api = { W, H, ZONE, REST_X, SIGN, SIGN_BOX, MONTHS, CYCLE, animalsOf, ANIMALS, FLOWERS, ANIM, Meadow, drawGround, renderStatic };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Meadow = api;
 })(this);

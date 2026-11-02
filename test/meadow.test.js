@@ -57,3 +57,22 @@ test('meadow: the update signpost fits the corner and is clickable only while sh
   assert.strictEqual(meadow.onSign(...mid), true);
   assert.strictEqual(meadow.onSign(10, 10), false);
 });
+
+test('prop animations keep the prop size and run over a long time', () => {
+  for (const [name, anim] of Object.entries(M.ANIM)) {
+    const fl = M.FLOWERS[name];
+    assert.ok(fl, name);
+    let changed = 0;
+    for (let t = 0; t < 120; t += 0.05) {
+      const fr = anim(t, fl);
+      if (!fr) continue;
+      changed++;
+      if (fr.rows) {
+        assert.equal(fr.rows.length, fl.rows.length, name);
+        for (const r of fr.rows) assert.equal(r.length, fl.rows[0].length, `${name}: ${r}`);
+      }
+      for (const [x, y] of fr.extra || []) assert.ok(x >= -3 && x < fl.rows[0].length + 3 && y >= -3 && y < fl.rows.length, name);
+    }
+    assert.ok(changed > 0, `${name} never moves`);
+  }
+});
