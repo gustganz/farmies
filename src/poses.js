@@ -369,6 +369,49 @@
     },
   };
 
-  if (typeof module !== 'undefined' && module.exports) module.exports = { LYING, STANDING };
-  else root.Poses = { LYING, STANDING };
+  // Front view (chicken): standing upright, head on top, after the user's reference (the sheet's own
+  // front view shows the tail feathers rising behind the head). Drawn at `x` (sheet frame
+  // coordinates), the bottom row on the ground line. Rows/columns below are in these rows: legs: first
+  // row of the legs (for kicking); shoulders: where the wings join the body (held up and flapping);
+  // wingEdges: columns and rows of the folded wings' inner edges (removed when the wings are spread).
+  const FRONT = {
+    chicken: {
+      x: 8,
+      legs: 22,
+      shoulders: 13,
+      wingEdges: { columns: [[3, 5], [10, 12]], rows: [13, 18] },
+      palette: { a: '#3a3737', b: '#222121', w: '#efe9e7', l: '#b7b3b2', g: '#827c7c', r: '#c84141', d: '#9e3e37', o: '#cf7b49' },
+      rows: [
+        '......arra......',
+        '.....adrrda.....',
+        '....aaddddaa....',
+        '...awwwwwwwwa...',
+        '..awwwwwwwwwwa..',
+        '..awwbwwwwbwwa..',
+        '..alwwwoowwwla..',
+        '..alwwwrrwwwla..',
+        '...alwwddwwla...',
+        '...alwwwwwwla...',
+        '..alwwwwwwwwla..',
+        '.alwwwwwwwwwwla.',
+        '.allwwwwwwwwlla.',
+        'aglawwwwwwwwalga',
+        'alwawwwwwwwwawla',
+        'alwawwwwwwwwawla',
+        'aglawwwwwwwwalga',
+        'agllawwwwwwallga',
+        '.aglalwwwwlalga.',
+        '.agglalwwlalgga.',
+        '..aagllllllgaa..',
+        '....aaggggaa....',
+        '....ada..ada....',
+        '....ada..ada....',
+        '...aoda..adoa...',
+        '..aoaoa..aoaoa..',
+      ],
+    },
+  };
+
+  if (typeof module !== 'undefined' && module.exports) module.exports = { LYING, STANDING, FRONT };
+  else root.Poses = { LYING, STANDING, FRONT };
 })(this);

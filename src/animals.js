@@ -2,14 +2,14 @@
 // Builds all animation frames from an animal's walk sheet (rows: up, left, down, right; 4 frames
 // each). Frames for walking right are mirrored from walking left. Derived poses:
 //   idle (standing), lie (lying down) and sleep (eyes closed, breathing; both from src/poses.js),
-//   front (looking at you), held (front view, legs kicking; the chicken also flaps), glide (chicken
-//   only: wings spread, comb and tail fluttering).
+//   front (looking at you; the chicken's is hand-drawn in src/poses.js), held (front view, legs
+//   kicking; the chicken also flaps), glide (chicken only: wings spread, comb and tail fluttering).
 // Pure functions on RGBA frames { w, h, data }; shared by the renderer (script tag) and node (tests).
 (function (root) {
   'use strict';
 
   // lying and standing poses, see src/poses.js
-  const { LYING, STANDING } = typeof module !== 'undefined' && module.exports ? require('./poses') : root.Poses;
+  const { LYING, STANDING, FRONT } = typeof module !== 'undefined' && module.exports ? require('./poses') : root.Poses;
   const ROW = { up: 0, left: 1, down: 2, right: 3 };
 
   // frame: size of a frame in the sheet; size: display size relative to the chicken's pixels;
@@ -32,20 +32,13 @@
     wingRoot: [12, 14], // bottom-left pixel of the spread wing (side view)
     combTip: [3, 3, 11, 6], // flutters while gliding
     tailTip: [25, 7, 31, 10],
-    // front view (32x32 frame): where the wings join the body, left and right
-    shoulders: [6, 25], // x of the body's left and right edge
-    // front view: the folded wings' inner edges (dark lines left and right of the belly)
-    frontWingEdges: [[10, 12], [19, 21]],
-    frontWingRows: [8, 18],
-    // front view: the tail feathers rising behind the head (rows up to here), drawn darker so they
-    // read as being in the background
-    frontTailBottom: 7,
   };
   // front view wings (procedural, see wingEllipse): angle in degrees from horizontal (positive =
-  // raised), length/thickness in pixels of a 32px frame, bottom: shoulder row
+  // raised), length/thickness in pixels of a 32px frame, shoulder: offset to the front view's
+  // shoulder row (src/poses.js)
   const FRONT_WINGS = {
-    up: { angle: 50, length: 12, thickness: 6, shoulder: 13 },
-    out: { angle: 5, length: 12, thickness: 6, shoulder: 14 },
+    up: { angle: 50, length: 12, thickness: 6, shoulder: 0 },
+    out: { angle: 5, length: 12, thickness: 6, shoulder: 1 },
   };
 
   // raised wings, '#' outline, 'e' feather, 'f' light shade, 'd' dark shade (palette of the chicken)
@@ -256,44 +249,6 @@
     return out;
   }
 
-  // One shade darker (white → light grey → grey) above row `bottom`, except red (the comb) and
-  // the dark outline. A bit darker than the wing greys, so the tail recedes further.
-  const TAIL_SHADES = { light: [166, 162, 161, 255], dark: [116, 110, 110, 255] };
-  function shadeBackground(f, bottom) {
-    const out = clone(f);
-    for (let y = 0; y <= bottom; y++) {
-      for (let x = 0; x < f.w; x++) {
-        if (!opaque(f, x, y)) continue;
-        const [r, g, b] = rgb(f, x, y);
-        if (r - g > 40) continue; // comb
-        const l = lum([r, g, b]);
-        if (l > 210) set(out, x, y, TAIL_SHADES.light);
-        else if (l > 150) set(out, x, y, TAIL_SHADES.dark);
-      }
-    }
-    return out;
-  }
-
-  // The front view's tail feathers stick up high above the head: cut their tip by two rows and
-  // close the new top with the outline (same 45° staircase as below).
-  function lowerFrontTail(f) {
-    const out = clone(f);
-    let top = 0;
-    while (top < f.h && ![...Array(f.w).keys()].some((x) => opaque(f, x, top))) top++;
-    let x0 = 0;
-    while (!opaque(f, x0, top)) x0++; // left outline of the tip
-    const ink = rgb(f, x0, top);
-    for (let y = top; y < top + 4; y++) for (let x = 0; x < f.w; x++) clear(out, x, y);
-    const rows = ['..####..', '##dlld##'];
-    rows.forEach((row, i) =>
-      [...row].forEach((ch, j) => {
-        const c = ch === '#' ? ink : ch === 'd' ? TAIL_SHADES.dark : ch === 'l' ? TAIL_SHADES.light : null;
-        if (c) set(out, x0 - 2 + j, top + 2 + i, c);
-      }),
-    );
-    return out;
-  }
-
   function shift(f, [x0, y0, x1, y1], dx) {
     const out = clone(f);
     for (let y = y0; y <= y1; y++) for (let x = x0; x <= x1; x++) clear(out, x, y);
@@ -415,11 +370,24 @@
     // all poses stand on the same ground line: the feet when walking (the sheet's rows are not
     // aligned, e.g. the front view sits lower)
     const ground = Math.max(...walk.map(bottomRow));
-    let front = take(0, ROW.down);
-    const frontShift = ground - bottomRow(front);
-    front = shiftY(front, frontShift);
-    // chicken: the tail feathers behind the head darker, so they don't look like a second head
-    if (a.canFly) front = lowerFrontTail(shadeBackground(front, m(CHICKEN.frontTailBottom) + frontShift));
+    // front view: hand-drawn (src/poses.js), or the sheet's, moved down to the ground line
+    const drawn = FRONT[id];
+    let front;
+    let frontTop;
+    let frontAt = (x, y) => [x, y]; // drawn front view's coordinates → frame
+    if (drawn) {
+      front = blank(walk[0].w, walk[0].h);
+      const top = ground - drawn.rows.length + 1;
+      frontAt = (x, y) => [m(drawn.x) + x, top + y];
+      drawn.rows.forEach((line, y) =>
+        [...line].forEach((ch, x) => ch !== '.' && set(front, ...frontAt(x, y), hexColor(drawn.palette[ch]))),
+      );
+      frontTop = frontAt(0, drawn.legs)[1];
+    } else {
+      front = take(0, ROW.down);
+      front = shiftY(front, ground - bottomRow(front));
+      frontTop = legTop(front);
+    }
 
     // standing: the first walk frame, or hand-drawn straight legs (src/poses.js)
     const standing = STANDING[id];
@@ -451,7 +419,6 @@
     const sleep = [asleep, breathe(asleep, chest)];
 
     // Held up: front view, legs kicking (pulled in by turns); the chicken also flaps its wings.
-    const frontTop = legTop(front);
     const detail = a.halve || size === 32 ? 1 : 2; // sheet pixels per chicken-sized pixel
     const KICKS = [
       [[0, -2], [1, 0]],
@@ -461,11 +428,19 @@
     let glide = [];
     if (a.canFly) {
       const s = (v) => m(Math.round((v * size) / 32)); // chicken coordinates → this frame
-      const shoulders = CHICKEN.shoulders.map(s);
-      const open = (f) => removeFrontWingEdges(f, CHICKEN.frontWingEdges.map((c) => c.map(s)), CHICKEN.frontWingRows.map(s));
+      // wings at the body's outer edges, from the shoulder row
+      const { columns, rows } = drawn.wingEdges;
+      const shoulderY = frontAt(0, drawn.shoulders)[1];
+      const shoulders = [frontAt(0, 0)[0], frontAt(drawn.rows[0].length - 1, 0)[0]];
+      const open = (f) =>
+        removeFrontWingEdges(
+          f,
+          columns.map(([x0, x1]) => [frontAt(x0, 0)[0], frontAt(x1, 0)[0]]),
+          rows.map((y) => frontAt(0, y)[1]),
+        );
       held = [FRONT_WINGS.up, FRONT_WINGS.out, FRONT_WINGS.up, FRONT_WINGS.out].map((wing, i) => {
         const f = open(held[i % held.length]);
-        drawFrontWings(f, wing, shoulders, s(wing.shoulder), size / 32);
+        drawFrontWings(f, wing, shoulders, shoulderY + wing.shoulder, size / 32);
         return f;
       });
       // gliding sideways: wings spread, folded wing painted over, comb and tail fluttering

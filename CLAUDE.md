@@ -25,8 +25,9 @@ developer and release notes: docs/entwicklung.md.
 - `src/focus.js`, `*.ps1`, `src/wt-tabs.js`, `extension/`: clicking a bubble focuses the session's
   window/tab (Windows Terminal tab via UI Automation, VS Code/Cursor/Windsurf terminal via the companion
   extension, macOS via AppleScript).
-- `src/animals.js` (+ `src/poses.js`, lying poses as palette rows): builds every pose from the LPC walk
-  sheets in pure JS. `src/bubbles.js`: bubble glyphs and arc layout. Both are UMD (renderer + node).
+- `src/animals.js` (+ `src/poses.js`, lying poses and the chicken's front view as palette rows): builds
+  every pose from the LPC walk sheets in pure JS. `src/bubbles.js`: bubble glyphs and arc layout. Both
+  are UMD (renderer + node).
 - `src/meadow.js`: the seasonal meadow at the bottom of the hover panel (props per month, visiting
   animals); UMD like `animals.js`. The hook stores short context (prompt, last tool step, result) for it.
 - `src/updater.js` + `src/releases.js`: GitHub Releases updater (hourly + menu "Nach Updates suchen").
