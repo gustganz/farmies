@@ -91,7 +91,8 @@ async function ensureEditorExtension(target, home) {
     writeIfChanged(
       script,
       '#!/bin/sh\n# Installs the Farmies companion extension into an editor server (written by the app).\n' +
-        'bin=$(ls -d "$HOME/$1"/bin/*/bin/*-server 2>/dev/null | tail -n 1)\n' +
+        '# newest server: cli/servers/<build>/server/bin (current layout) or bin/<commit>/bin (older)\n' +
+        'bin=$(ls -td "$HOME/$1"/cli/servers/*/server/bin/*-server "$HOME/$1"/bin/*/bin/*-server 2>/dev/null | head -n 1)\n' +
         '[ -n "$bin" ] && "$bin" --install-extension "$2" --force\n',
     );
     for (const server of WSL_SERVERS) {
