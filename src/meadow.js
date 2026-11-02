@@ -260,6 +260,8 @@
   };
   const SNOWMAN_LEFT = ['..kkk..', '.kkkkk.', '.kwkww.', 'oowwww.', '.rrrrr.', 'wwwkwwg', '.wwwwg.'];
   const SNOWMAN_FRONT = ['..kkk..', '.kkkkk.', '.wkwkw.', '.wwoww.', '.rrrrr.', 'wwwkwwg', '.wwwwg.'];
+  const SNOWMELT_LEFT = ['.......', '.......', '...kkk.', 'okwkww.', '.rrrrr.', 'gwwwwgg'];
+  const SNOWMELT_FRONT = ['.......', '.......', '...kkk.', '.wkokw.', '.rrrrr.', 'gwwwwgg'];
   const UMBRELLA_HALF = [
     '.......k.......',
     '......rrr......',
@@ -290,6 +292,11 @@
       const u = sometimes(t, 9, 3, 1);
       if (u < 0) return null;
       return { rows: u < 0.3 || u > 2.7 ? SNOWMAN_FRONT : SNOWMAN_LEFT };
+    },
+    snowmanMelt: (t) => {
+      const u = sometimes(t, 9, 3, 7);
+      if (u < 0) return null;
+      return { rows: u < 0.3 || u > 2.7 ? SNOWMELT_FRONT : SNOWMELT_LEFT };
     },
     // the umbrella folds up for a while, then opens again
     umbrella: (t, fl) => {
@@ -667,7 +674,26 @@
     }));
   }
 
-  function drawGround(ctx, month, sign = false, time = 0) {
+  // where the month's props stand: the story prop in the corner, the small ones to its left
+  function layout(month) {
+    let x = W - 4;
+    const LIFT = [3, 1, 0]; // logical px: the corner piece sits a bit higher, not all on one line
+    return MONTHS[month].flowers.map((f, i) => {
+      const fl = FLOWERS[f];
+      const s = fl.s || S;
+      const rows = fl.rows.slice(0, Math.floor(15 / s)); // at most 15 meadow px high
+      x = fl.peek ? W - rows[0].length * s : x - rows[0].length * s;
+      const item = { f, i, s, rows, x, y: GROUND_Y + 1 - rows.length * s - (fl.peek ? 0 : LIFT[i]), w: rows[0].length * s };
+      x -= 3;
+      return item;
+    });
+  }
+
+  // props a flying visitor can land on: the blossoms, and the lantern's ring
+  const PERCH = new Set([...Object.keys(SWAY), 'lantern']);
+
+  // hidden: { carrot } while the hare has taken the snowman's carrot nose
+  function drawGround(ctx, month, sign = false, time = 0, hidden = {}) {
     const m = MONTHS[month];
     ctx.clearRect(0, 0, W, H);
     ctx.fillStyle = m.ground;
@@ -696,37 +722,41 @@
       drawSign(ctx, time);
       return;
     }
-    // flowers, bottom right
-    // the story prop stands in the corner, the small ones to its left
-    let x = W - 4;
-    const LIFT = [3, 1, 0]; // logical px: the corner piece sits a bit higher, not all on one line
-    m.flowers.forEach((f, i) => {
+    for (const { f, i, s, rows, x, y } of layout(month)) {
       const fl = FLOWERS[f];
-      const s = fl.s || S;
-      const rows = fl.rows.slice(0, Math.floor(15 / s)); // at most 15 meadow px high
-      x = fl.peek ? W - rows[0].length * s : x - rows[0].length * s;
-      const y = GROUND_Y + 1 - rows.length * s - (fl.peek ? 0 : LIFT[i]);
       const fr = (ANIM[f] && ANIM[f](time, fl)) || {};
       const shown = fr.rows || rows;
+      let colors = fr.c || fl.c;
+      if (f === 'hatCarrot' && hidden.carrot) colors = { ...colors, o: null };
       const px = x + (fr.dx || 0);
       const py = y + (fr.dy || 0);
       const top = SWAY[f] || 0;
-      put(ctx, shown.slice(0, top), fr.c || fl.c, px + swayOf(time, i), py, false, s);
-      put(ctx, shown.slice(top), fr.c || fl.c, px, py + top * s, false, s);
+      put(ctx, shown.slice(0, top), colors, px + swayOf(time, i), py, false, s);
+      put(ctx, shown.slice(top), colors, px, py + top * s, false, s);
       for (const [ex, ey, color] of fr.extra || []) {
         ctx.fillStyle = color;
         ctx.fillRect(px + ex * s, py + ey * s, s, s);
       }
-      x -= 3;
-    });
+    }
   }
 
-  function drawAnimal(ctx, a) {
+  function drawAnimal(ctx, a, dx = 0) {
     if (!a || a.phase === 'away') return;
     const sp = ANIMALS[a.kind];
     const rows = sp.frames[a.frame % 2];
     const s = sp.s || S;
-    put(ctx, rows, sp.c, a.x, a.y - rows.length * s + 1, a.flip, s);
+    put(ctx, rows, sp.c, a.x + dx, a.y - rows.length * s + 1, a.flip, s);
+    // the hare's carrot, held in the mouth and getting shorter while it eats
+    const len = Math.ceil(a.carry || 0);
+    if (len > 0) {
+      const w = rows[0].length * s;
+      const mouthY = Math.round(a.y) - 3;
+      ctx.fillStyle = '#e8742a';
+      for (let k = 0; k < len; k++) {
+        const cx = a.flip ? Math.round(a.x) + w + k : Math.round(a.x) - 1 - k;
+        ctx.fillRect(cx, mouthY, 1, k < len - 1 || len === 1 ? 2 : 1);
+      }
+    }
   }
 
   /**
@@ -759,12 +789,16 @@
     setMonth(m) {
       if (m === this.month) return;
       this.month = m;
+      this.carrotGone = false;
       this.a = { phase: 'away', wait: 60 };
     }
 
     draw(ctx) {
-      drawGround(ctx, this.month, this.sign, this.time);
-      drawAnimal(ctx, this.a);
+      drawGround(ctx, this.month, this.sign, this.time, { carrot: this.carrotGone });
+      const a = this.a;
+      // a visitor sitting on a blossom sways with it
+      const dx = a.perch && a.phase === 'resting' && SWAY[a.perch.f] ? swayOf(this.time, a.perch.i) : 0;
+      drawAnimal(ctx, a, dx);
     }
 
     arrive() {
@@ -773,7 +807,58 @@
       const move = ANIMALS[kind].move;
       const flying = ['fly', 'flutter'].includes(move);
       const fromLeft = Math.random() < 0.5;
-      this.a = { kind, move, phase: 'arriving', fromLeft, x: fromLeft ? -16 : W + 4, y: flying ? 10 : GROUND_Y, t: 0, frame: 0, flip: fromLeft, restY: flying ? GROUND_Y - 8 : GROUND_Y };
+      this.a = { kind, move, phase: 'arriving', fromLeft, x: fromLeft ? -16 : W + 4, y: flying ? 10 : GROUND_Y, t: 0, frame: 0, flip: fromLeft, restX: REST_X, restY: flying ? GROUND_Y - 8 : GROUND_Y };
+      // bee, butterfly and dragonfly land on one of the month's blossoms (or the lantern)
+      const perches = flying ? layout(this.month).filter((p) => PERCH.has(p.f)) : [];
+      if (perches.length && !this.sign) {
+        const p = perches[Math.floor(Math.random() * perches.length)];
+        const sp = ANIMALS[kind];
+        const aw = sp.frames[0][0].length * (sp.s || S);
+        this.a.perch = p;
+        this.a.restX = Math.round(p.x + p.w / 2 - aw / 2);
+        this.a.restY = p.y; // its feet on the blossom's top row
+      }
+      // the hare, in March: now and then it fetches the snowman's carrot nose and eats it
+      if (kind === 'hare' && this.month === 2 && !this.carrotGone) this.a.fetchAt = 3 + Math.random() * 10;
+    }
+
+    /** The hare's errand: hop to the snowman's hat, take the carrot, hop back and eat it. */
+    fetchCarrot(a, dt, v) {
+      const hop = () => {
+        a.y = GROUND_Y - Math.abs(Math.sin(a.t * 5)) * 4;
+        a.frame = Math.floor(a.t * 6);
+      };
+      if (!a.task) {
+        if (a.t < a.fetchAt) return;
+        a.task = 'fetch';
+        a.flip = true;
+      }
+      if (a.task === 'fetch') {
+        const carrot = layout(this.month).find((p) => p.f === 'hatCarrot');
+        const goal = carrot.x + 5 * carrot.s - ANIMALS.hare.frames[0][0].length; // nose at the carrot
+        a.x = Math.min(goal, a.x + v * 0.7 * dt);
+        hop();
+        if (a.x >= goal) {
+          this.carrotGone = true;
+          a.carry = 4;
+          a.task = 'back';
+          a.flip = false;
+        }
+      } else if (a.task === 'back') {
+        a.x = Math.max(REST_X, a.x - v * 0.7 * dt);
+        hop();
+        if (a.x <= REST_X) {
+          a.task = 'eat';
+          a.y = GROUND_Y;
+        }
+      } else if (a.task === 'eat') {
+        a.carry = Math.max(0, a.carry - dt * 0.5);
+        a.frame = Math.floor(a.t * 3) % 2; // chewing
+        if (a.carry === 0) {
+          a.task = 'done';
+          delete a.fetchAt;
+        }
+      }
     }
 
     step(dt) {
@@ -789,13 +874,14 @@
       const v = SPEED[a.move];
       if (a.phase === 'arriving') {
         a.x += (a.fromLeft ? 1 : -1) * v * dt;
-        const far = Math.abs(a.x - REST_X);
-        if (a.move === 'fly') a.y = a.restY - 4 + Math.sin(a.t * 6) * 2 - Math.min(10, far * 0.1);
-        if (a.move === 'flutter') a.y = a.restY - 3 + Math.sin(a.t * 3) * 3 - Math.min(10, far * 0.1);
+        const far = Math.abs(a.x - a.restX);
+        const k = Math.min(1, far / 15); // the last bit: glide down onto the resting place
+        if (a.move === 'fly') a.y = a.restY - (4 - Math.sin(a.t * 6) * 2 + Math.min(10, far * 0.1)) * k;
+        if (a.move === 'flutter') a.y = a.restY - (3 - Math.sin(a.t * 3) * 3 + Math.min(10, far * 0.1)) * k;
         if (a.move === 'hop' || a.move === 'hopfly') a.y = GROUND_Y - Math.abs(Math.sin(a.t * 5)) * 5;
         a.frame = Math.floor(a.t * (a.move === 'creep' ? 1 : 6));
-        if (a.fromLeft ? a.x >= REST_X : a.x <= REST_X) {
-          a.x = REST_X;
+        if (a.fromLeft ? a.x >= a.restX : a.x <= a.restX) {
+          a.x = a.restX;
           a.flip = false;
           a.y = a.restY;
           a.phase = 'resting';
@@ -807,7 +893,8 @@
         // small signs of life: wings, sniffing, now and then
         const slow = { fly: 0.8, flutter: 0.5, crawl: 0.4, hop: 0.3, walk: 0.5, creep: 0, hopfly: 0.4, scurry: 0.6 }[a.move];
         a.frame = Math.floor(a.t * slow) % 2;
-        if (a.move === 'fly' || a.move === 'flutter') a.y = a.restY + (Math.floor(a.t * 1.5) % 2);
+        if ((a.move === 'fly' || a.move === 'flutter') && !a.perch) a.y = a.restY + (Math.floor(a.t * 1.5) % 2);
+        if (a.fetchAt !== undefined) this.fetchCarrot(a, dt, v);
         const m = this.mouse;
         if (m && Math.hypot(m.x - (a.x + 6), m.y - (a.y - 4)) < 26) {
           a.phase = 'leaving';
@@ -827,6 +914,7 @@
         a.frame = Math.floor(a.t * 8);
         if (a.x > W + 8 || a.y < -8) {
           this.a = { phase: 'away', wait: this.minDelay + Math.random() * (this.maxDelay - this.minDelay) };
+          this.carrotGone = false; // the snowman gets a new nose once the hare is gone
         }
       }
     }
@@ -844,7 +932,7 @@
     });
   }
 
-  const api = { W, H, ZONE, REST_X, SIGN, SIGN_BOX, MONTHS, CYCLE, animalsOf, ANIMALS, FLOWERS, ANIM, Meadow, drawGround, renderStatic };
+  const api = { W, H, ZONE, REST_X, SIGN, SIGN_BOX, MONTHS, CYCLE, animalsOf, ANIMALS, FLOWERS, ANIM, layout, Meadow, drawGround, renderStatic };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Meadow = api;
 })(this);

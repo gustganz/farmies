@@ -35,10 +35,10 @@ test('meadow: a visitor comes, rests in the corner and leaves when the pointer c
   assert.ok(M.animalsOf(6).includes(meadow.a.kind));
   for (let i = 0; i < 2000 && meadow.a.phase === 'arriving'; i++) meadow.step(0.1);
   assert.strictEqual(meadow.a.phase, 'resting');
-  assert.strictEqual(meadow.a.x, M.REST_X);
+  assert.strictEqual(meadow.a.x, meadow.a.restX);
   meadow.step(60);
   assert.strictEqual(meadow.a.phase, 'resting'); // stays as long as nobody comes
-  meadow.pointer(M.REST_X + 6, meadow.a.y - 4);
+  meadow.pointer(meadow.a.x + 6, meadow.a.y - 4);
   meadow.step(0.1);
   assert.strictEqual(meadow.a.phase, 'leaving');
   for (let i = 0; i < 2000 && meadow.a.phase === 'leaving'; i++) meadow.step(0.1);
@@ -75,4 +75,36 @@ test('prop animations keep the prop size and run over a long time', () => {
     }
     assert.ok(changed > 0, `${name} never moves`);
   }
+});
+
+// a visitor of the given kind, already arrived and resting
+function visitor(month, kind) {
+  const meadow = new M.Meadow({ month });
+  do meadow.arrive(); while (meadow.a.kind !== kind);
+  for (let i = 0; i < 4000 && meadow.a.phase === 'arriving'; i++) meadow.step(0.05);
+  assert.strictEqual(meadow.a.phase, 'resting', kind);
+  return meadow;
+}
+
+test('meadow: bee, butterfly and dragonfly land on a blossom or the lantern', () => {
+  for (const [month, kind] of [[4, 'bee'], [5, 'butterfly'], [7, 'dragonfly'], [8, 'dragonfly']]) {
+    const meadow = visitor(month, kind);
+    const p = meadow.a.perch;
+    assert.ok(p, `${kind} in month ${month + 1}`);
+    assert.strictEqual(meadow.a.y, p.y);
+    assert.ok(meadow.a.x >= p.x - 20 && meadow.a.x <= p.x + p.w);
+  }
+});
+
+test('meadow: the hare in March takes the carrot nose, which comes back once it is gone', () => {
+  const meadow = visitor(2, 'hare');
+  for (let i = 0; i < 600 && !meadow.carrotGone; i++) meadow.step(0.05);
+  assert.ok(meadow.carrotGone);
+  for (let i = 0; i < 600 && meadow.a.task !== 'done'; i++) meadow.step(0.05);
+  assert.strictEqual(meadow.a.task, 'done');
+  assert.strictEqual(meadow.a.x, M.REST_X);
+  meadow.pointer(meadow.a.x + 6, meadow.a.y - 4);
+  for (let i = 0; i < 2000 && meadow.a.phase !== 'away'; i++) meadow.step(0.05);
+  assert.strictEqual(meadow.a.phase, 'away');
+  assert.strictEqual(meadow.carrotGone, false);
 });
