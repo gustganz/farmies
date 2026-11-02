@@ -35,7 +35,7 @@
   };
   // front view wings (procedural, see wingEllipse): angle in degrees from horizontal (positive =
   // raised), length/thickness in pixels of a 32px frame, shoulder: offset to the front view's
-  // shoulder row (src/poses.js)
+  // shoulder row (src/poses.js), inset: root moved in from the body's widest edge
   const FRONT_WINGS = {
     up: { angle: 50, length: 12, thickness: 6, shoulder: 0 },
     out: { angle: 5, length: 12, thickness: 6, shoulder: 1 },
@@ -346,8 +346,9 @@
   // front view wings at the body's edges, left and right (mirror images)
   function drawFrontWings(f, wing, [lx, rx], shoulderY, k) {
     const w = { ...wing, length: wing.length * k, thickness: wing.thickness * k };
-    wingEllipse(f, lx + 1, shoulderY, -1, w);
-    wingEllipse(f, rx - 1, shoulderY, 1, w);
+    const inset = wing.inset || 0; // root moved in towards the middle (the body is narrower up top)
+    wingEllipse(f, lx + 1 + inset, shoulderY, -1, w);
+    wingEllipse(f, rx - 1 - inset, shoulderY, 1, w);
   }
 
   // --- build ---------------------------------------------------------------------------------------
@@ -499,7 +500,7 @@
     };
   }
 
-  const api = { ANIMALS, DEFAULT_ANIMAL, build, halve, mirror, legTop, head, bbox };
+  const api = { ANIMALS, DEFAULT_ANIMAL, FRONT_WINGS, build, halve, mirror, legTop, head, bbox };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.Animals = api;
 })(this);
