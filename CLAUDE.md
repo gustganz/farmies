@@ -3,7 +3,8 @@
 Electron desktop app (Windows via WSL, macOS): pixel farm animals walk along the bottom of the screen
 and show speech bubbles when a Claude Code session needs the user. Owner: Gust (German speaking).
 User-facing text (UI, README) is German; code, comments and commit messages are English.
-Feature overview, usage and release steps: README.md.
+Short user README (German, pictures from `scripts/readme-shots.js`, invented session names only);
+developer and release notes: docs/entwicklung.md.
 
 ## How it fits together
 

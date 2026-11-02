@@ -1,127 +1,86 @@
-# Farmies
+<div align="center">
 
-Pixel-Bauernhoftiere (Huhn, Kuh, Schwein, Schaf, Lama), die am unteren Bildschirmrand herumlaufen und
-Bescheid geben, wenn eine Claude-Code-Session dich braucht. Standard ist das Huhn, umschalten im Tray unter *Tier*.
+# 🐔 Farmies
 
-- **Sprechblasen**, nur wenn eine Session dich braucht: bis zu 5 im Bogen über dem Kopf, die dringendste in
-  der Mitte, jede mit Spitze zum Kopf; bei mehr Sessions „+N“ (ab 10: ∞).
-  - rotes **`✗`**: mit Fehler abgebrochen (API-Fehler, Limit)
-  - rotes **`!`**: Freigabe nötig
-  - blaues **`?`**: Claude stellt dir eine Frage
-  - grünes **`✓`**: fertig, wartet auf deinen nächsten Prompt
-- **Verhalten**: wartet etwas auf dich und arbeitet keine Session mehr, bleibt das Tier stehen, schaut dich an
-  und hüpft. Arbeitet noch eine andere Session, läuft es hüpfend weiter, die Blasen wandern mit. Ist gar nichts
-  los, legt es sich hin und schläft (Zzz).
-- **Packen & fallen lassen**: Tier mit der Maus greifen (Frontansicht, strampelt; das Huhn flattert) und es
-  schaukelt beim Schwenken nach. Loslassen, auch auf einem anderen Bildschirm: es landet am unteren Rand;
-  das Huhn segelt aus größerer Höhe mit ausgebreiteten Flügeln herunter.
-- **Hover**: eine große Sprechblase. Oben die wartenden Sessions, darunter alle Sessions als Namensschilder
-  (Rahmenfarbe = Zustand, arbeitend: drehende Farben). Fährt man über eine, zeigt die Wiese unten Auftrag,
-  Branch und letzten Schritt (bzw. Freigabe, Frage, Ergebnis, Fehler). Dafür speichert der Hook je Session
-  kurze Auszüge (letzter Prompt, letzter Tool-Aufruf, letzte Antwort, je max. 300 Zeichen) lokal in
-  `~/.farmies/sessions/`; nichts davon verlässt den Rechner. Die Wiese wechselt jeden Monat ihr Aussehen, und
-  alle 1–3 Stunden kommt ein kleines Tier der Jahreszeit vorbei, das wegläuft, wenn man mit der Maus hinfährt.
-- **Klick** auf eine Blase oder einen Eintrag: holt genau diese Session nach vorne.
-  - Windows Terminal: der richtige Tab (die App lernt ihn über eine kurze Markierung im Tab-Titel)
-  - Cursor, VS Code, Windsurf: das Fenster und dort das Terminal der Session (Begleit-Erweiterung, wird
-    automatisch installiert); JetBrains: das Fenster
-  - macOS: Terminal.app und iTerm über das TTY, sonst die App der Session
-- **Tray-Icon** (Bauernhaus) bzw. **Rechtsklick aufs Tier**: Tier, Größe, alle als gesehen markieren, ausblenden, „Beim Login starten“,
-  über Farmies, deinstallieren, beenden.
-- **Updates**: die App schaut kurz nach dem Start und dann stündlich nach einem neuen
-  [GitHub-Release](https://github.com/gustganz/farmies/releases). Gibt es eins, zeigt das Tier eine orange
-  **NEW**-Blase (immer, zusätzlich zu den Session-Blasen) und das Panel einen Eintrag. Klick darauf lädt das
-  Update (Fortschritt in der Blase), tauscht die App aus und startet sie neu. Einstellungen, Position des Tiers
-  und als gesehen markierte Sessions bleiben erhalten. Sofort prüfen: Menü → *Nach Updates suchen*.
-- **Autostart**: ab dem ersten Start aktiv. Windows: Registry `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
-  (Eintrag `com.gustganz.farmies`), macOS: `~/Library/LaunchAgents/com.gustganz.farmies.plist`. Abschalten über das Tray-Menü.
+**Ein kleines Pixel-Tier am Bildschirmrand, das dir Bescheid gibt,<br>wenn Claude Code auf dich wartet.**
 
-## Aufbau
+<img src="docs/img/hero.gif" alt="Ein Huhn läuft am unteren Bildschirmrand, über dem Kopf Sprechblasen" width="720">
 
-- `hook/farmies-hook.sh` läuft als Claude-Code-Hook (WSL/macOS) und schreibt pro Session eine
-  Statusdatei nach `~/.farmies/sessions/` (unter WSL ins Windows-Home).
-- `src/` ist die Electron-App: liest die Statusdateien und zeigt das Tier in einem kleinen transparenten,
-  immer obenliegenden Fenster, das mit ihm über die Bildschirme wandert.
-- `src/animals.js` erzeugt alle Posen aus den Lauf-Animationen der Vorlage (Liegen mit geschlossenen
-  Augen, Strampeln, beim Huhn Flattern und Segeln); `src/bubbles.js` die Sprechblasen und ihren Bogen.
-- Vorschau ohne Display: `node scripts/preview-animals.js` (alle Posen) und
-  `node scripts/preview-bubbles.js <anzahl>` (alle Tiere mit Blasen, wie die App sie platziert).
+[![Neueste Version](https://img.shields.io/github/v/release/gustganz/farmies?label=Version&color=3f8f2f)](https://github.com/gustganz/farmies/releases/latest)
+![Windows](https://img.shields.io/badge/Windows-0078d4?logo=windows&logoColor=white)
+![macOS](https://img.shields.io/badge/macOS-000000?logo=apple&logoColor=white)
 
-## Benutzen (fertige Pakete)
+### [⬇️ Herunterladen](https://github.com/gustganz/farmies/releases/latest)
 
-Die App richtet bei **jedem Start** selbst ein, was fehlt: Hook-Skript, Konfiguration und die Hooks in
-`~/.claude/settings.json` (unter Windows in der Standard-WSL-Distribution über `\\wsl.localhost`).
-Laufende Claude-Code-Sessions übernehmen neue Hooks meist sofort, sonst neu starten. Probleme stehen im
-Tooltip des Tray-Icons.
+</div>
 
-- **Windows**: `Farmies-<version>-portable.exe` irgendwo hinlegen und starten. Sie entpackt sich bei
-  jedem Start selbst (dauert ein paar Sekunden); der Autostart zeigt auf die `.exe`.
-- **macOS**: `Farmies-<version>-mac-arm64.zip` (Apple Silicon) bzw. `…-mac-x64.zip` (Intel) entpacken,
-  App nach *Programme* ziehen und einmal im Terminal freischalten (nicht notarisiert):
+## Installieren
 
-  ```sh
-  xattr -cr "/Applications/Farmies.app"
-  codesign --force --deep -s - "/Applications/Farmies.app"
-  ```
+> Voraussetzung: [Claude Code](https://code.claude.com/docs) ist installiert
+> (unter Windows in **WSL**).
 
-  Spätere Updates über die App brauchen das nicht mehr.
+**🪟 Windows**
 
-## Entwicklung
+1. Auf der [Download-Seite](https://github.com/gustganz/farmies/releases/latest) die Datei
+   **`Farmies-…-portable.exe`** laden.
+2. An einen festen Platz legen (z. B. *Dokumente*) und doppelklicken. Fertig.
 
-Grafiken: „LPC style farm animals“ von Daniel Eddeland (CC-BY 3.0), liegen in `assets/lpc/`.
-Schriften: Pixelify Sans und Silkscreen (OFL), kommen per `npm install`. Details: [assets/CREDITS.md](assets/CREDITS.md).
+<sub>Falls Windows „Der Computer wurde durch Windows geschützt“ meldet: *Weitere Informationen* → *Trotzdem ausführen*.</sub>
 
-App starten:
+**🍎 macOS**
 
-- **Windows (aus WSL)**: `sh scripts/run-windows.sh`: kopiert die App nach
-  `%LOCALAPPDATA%\farmies\app`, installiert Electron und startet sie. Erneut ausführen = Neustart mit neuem Code.
-- **macOS**: `npm install && npm start`
+1. Auf der [Download-Seite](https://github.com/gustganz/farmies/releases/latest) die passende ZIP laden:
+   **`…-mac-arm64.zip`** (Apple Silicon, M1 und neuer) oder **`…-mac-x64.zip`** (Intel).
+2. Entpacken und **Farmies** in *Programme* ziehen.
+3. Einmalig im Terminal freischalten (die App ist nicht notarisiert):
 
-Hooks ohne App einrichten (optional): `sh scripts/install-hook.sh` (in WSL bzw. auf dem Mac).
+   ```sh
+   xattr -cr /Applications/Farmies.app && codesign --force --deep -s - /Applications/Farmies.app
+   ```
 
-Tests (plain node, ohne Windows/Mac/Display): `npm test`
+4. Farmies öffnen.
 
-Automatisch auf GitHub (`.github/workflows/ci.yml`, bei jedem Push): die Tests und ein Starttest der
-gebauten App auf echten macOS- und Windows-Rechnern (`scripts/smoke.js`): startet sie, prüft, dass sie
-läuft, das Tier zeichnet, keine Fehler loggt und (macOS) die Hooks einrichtet. Ein Bildschirmfoto
-hängt am Lauf. Vor jedem Release läuft derselbe Starttest.
+Das war's. Farmies richtet sich beim Start selbst ein, startet ab jetzt mit dem Rechner und
+**aktualisiert sich von selbst**. Laufende Claude-Sessions bei Bedarf einmal neu starten.
 
-Noch nicht von Hand getestet: macOS (außer dem Starttest: Klick-Fokussieren, Autostart, Update) und
-das Claude-Plugin in Cursor/VS Code (die Blasen sollten kommen, ein Klick holt aber nur das Fenster,
-nicht das Claude-Panel).
+## Was das Tier dir sagt
 
-Release (baut Windows und macOS auf GitHub Actions, `.github/workflows/release.yml`):
+<p align="center"><img src="docs/img/blasen.png" alt="Vier Sprechblasen: Fehler, Freigabe nötig, Frage an dich, Fertig" width="720"></p>
 
-1. `version` in `package.json` erhöhen, committen
-2. nach `main` pushen: `git push origin main`
+Arbeitet Claude noch, läuft das Tier herum. Wartet etwas auf dich, hüpft es mit Sprechblasen.
+Ist nichts los, legt es sich schlafen. 💤
 
-Gibt es zur Version noch kein Release, legt der Workflow es samt Tag `v<version>` auf GitHub an (ein
-Tag-Push ist nicht nötig, geht aber weiterhin). Er lässt die Tests laufen und hängt
-`Farmies-<version>-portable.exe` und `Farmies-<version>-mac-{arm64,x64}.zip` ans Release. Die laufenden
-Apps finden es von selbst (`src/updater.js`).
+## Alle Sessions auf einen Blick
 
-Pakete lokal bauen (`dist/`):
+<img src="docs/img/panel.png" alt="Panel mit allen Sessions und einer Wiese, die zeigt, was die Session gerade tut" width="300" align="right">
 
-- **Windows**: auf Windows `npm install && npm run dist:win` → portable `.exe`
-- **macOS**: auf einem Mac `npm install && npm run dist:mac` → ZIPs für arm64 und x64 (ad-hoc-signiert)
-- **macOS unsigniert** (unter Linux/WSL): `npm run dist:mac-unsigned` → dieselben ZIPs, unsigniert;
-  braucht `build/icon.icns` (`npm run icon`) und `zip`
+**Maus übers Tier:** alle Sessions mit ihrem Zustand. Unten auf der Wiese steht, woran die Session
+gerade arbeitet.
 
-Debug: mit `FARMIES_DEBUG=1` schreibt die App Fensterbewegungen und den Hook-Status nach
-`<userData>/debug.log` und eine Aufnahme der Oberfläche nach `<userData>/capture.png`.
+**Klick** auf eine Blase oder Session holt genau dieses Fenster nach vorne, auch den richtigen Tab in
+Windows Terminal oder das Terminal in VS Code und Cursor.
 
-## Entfernen
+**Packen und fallen lassen:** Das Tier lässt sich mit der Maus herumtragen, auch auf einen anderen
+Bildschirm.
 
-Tray-Icon → **Deinstallieren…** entfernt die Integration, die App selbst bleibt:
+**Rechtsklick** aufs Tier: Tier wählen, Größe, ausblenden, beenden.
 
-- den Autostart
-- die Farmies-Hooks aus `~/.claude/settings.json`; andere Hooks bleiben, Backup unter
-  `settings.json.bak-farmies-uninstall`
-- `~/.farmies` (Hook-Skript, Statusdateien); unter WSL über `\\wsl.localhost\<distro>\…`
+Die Wiese ändert sich jeden Monat, und ab und zu schaut ein kleiner Besucher vorbei. 🐞
 
-Startet man die App danach wieder, richtet sie Hooks und Autostart neu ein.
+<br clear="right">
 
-## Credits
+## Such dir dein Tier aus
 
-Tiere: „LPC style farm animals“ von Daniel Eddeland, [CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/),
-<https://opengameart.org/content/lpc-style-farm-animals>. Siehe [assets/CREDITS.md](assets/CREDITS.md).
+<p align="center"><img src="docs/img/tiere.png" alt="Huhn, Kuh, Schwein, Schaf und Lama" width="720"></p>
+
+## Gut zu wissen
+
+- 🔒 Alles bleibt auf deinem Rechner. Farmies schickt nichts ins Internet, es schaut nur nach Updates.
+- 🧹 **Entfernen:** Rechtsklick aufs Tier → *Deinstallieren…* entfernt Hooks und Autostart, danach die
+  App löschen.
+- 🛠️ Mitentwickeln: [docs/entwicklung.md](docs/entwicklung.md)
+
+<sub>Tiere: „LPC style farm animals“ von Daniel Eddeland,
+[CC-BY 3.0](https://creativecommons.org/licenses/by/3.0/)
+([OpenGameArt](https://opengameart.org/content/lpc-style-farm-animals)).
+Schriften: Pixelify Sans und Silkscreen (OFL). Details: [assets/CREDITS.md](assets/CREDITS.md).</sub>
