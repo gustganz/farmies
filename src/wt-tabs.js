@@ -17,6 +17,7 @@ const scriptPath = (name) =>
 class WtTabs {
   constructor() {
     this.plainTitles = new Map(); // tab id → last title without marker
+    this.focusedTab = null; // id of the tab the user is in (selected, window in the foreground)
     this.proc = null;
     this.stopped = false;
   }
@@ -36,7 +37,10 @@ class WtTabs {
       }
     });
     this.proc.on('error', () => {});
-    this.proc.on('exit', () => setTimeout(() => this.start(), 5000));
+    this.proc.on('exit', () => {
+      this.focusedTab = null;
+      setTimeout(() => this.start(), 5000);
+    });
   }
 
   stop() {
@@ -45,6 +49,7 @@ class WtTabs {
   }
 
   onTabs(tabs) {
+    this.focusedTab = tabs.find((t) => t.focused)?.id || null;
     for (const tab of tabs) {
       const match = MARKER.exec(tab.title);
       if (!match) {
@@ -64,6 +69,11 @@ class WtTabs {
       const previous = this.plainTitles.get(tab.id) || tab.title.replace(/^\(!\) (.*) #.{4}$/, '$1');
       fs.writeFileSync(path.join(DIR, `${sessionId}.restore`), previous);
     }
+  }
+
+  /** Whether the user is in the tab of this session. */
+  isFocused(sessionId) {
+    return Boolean(this.focusedTab) && this.tabFor(sessionId) === this.focusedTab;
   }
 
   /** Tab id of a session, if known (kept in a file, so it survives app restarts). */

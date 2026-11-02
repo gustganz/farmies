@@ -4,10 +4,12 @@ const path = require('path');
 const { Sessions, NEEDS_USER_STATES } = require('./sessions');
 const Animals = require('./animals');
 const { trayIcon } = require('./tray-icon');
-const { focusSession } = require('./focus');
+const { focusSession, EDITORS } = require('./focus');
+const { SeenByFocus } = require('./seen-by-focus');
+const { focusedTerminalPids } = require('./editor-focus');
 const autostart = require('./autostart');
 const { uninstall } = require('./uninstall');
-const { ensureHooks } = require('./hooks');
+const { ensureHooks, hookHome } = require('./hooks');
 const { WtTabs } = require('./wt-tabs');
 const { Updater } = require('./updater');
 
@@ -25,6 +27,7 @@ let sheets = null; // animal id → PNG bytes
 let hookStatus = null; // result of ensureHooks() at start
 const sessions = new Sessions();
 const wtTabs = new WtTabs();
+const seenByFocus = new SeenByFocus();
 const updater = new Updater({ app, net, quit: () => app.quit() });
 const settings = {};
 
@@ -239,6 +242,24 @@ function yesNoMenu(label, value, set) {
   };
 }
 
+// A bubble counts as seen once the user stayed in the session's tab or editor terminal for a while
+// (see src/seen-by-focus.js).
+function markSeenByFocus() {
+  const pending = sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state));
+  let editorPids = null;
+  const focused = (s) => {
+    if (EDITORS[s.term]) {
+      editorPids = editorPids || focusedTerminalPids(hookHome());
+      return s.pids.some((pid) => editorPids.has(pid));
+    }
+    return process.platform === 'win32' && wtTabs.isFocused(s.id);
+  };
+  for (const id of seenByFocus.update(pending, focused)) {
+    debugLog('seen by focus', id);
+    sessions.dismiss(id);
+  }
+}
+
 const pendingCount = () => sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state)).length;
 
 // "Nach Updates suchen" in the menu: like the regular check, but always with an answer
@@ -362,6 +383,7 @@ acquireLock().then((locked) => {
     });
     sessions.start();
     wtTabs.start(); // Windows Terminal: which tab belongs to which session
+    setInterval(markSeenByFocus, 1000);
 
     updater.on('change', (u) => {
       win?.webContents.send('update', u);
