@@ -36,13 +36,13 @@
   // ---- pixel art -------------------------------------------------------------------------------
   const STEM = '#2f6a22';
   const FLOWERS = {
-    snowdrop: { rows: ['..s..', '..sw.', '..www', '..ww.', '..s..', '..s..', '.ss..'], c: { s: STEM, w: '#ffffff' } },
-    crocus: { rows: ['.p.p.', '.ppp.', '.pyp.', '..p..', '..s..', '.ss..', '..s..'], c: { p: '#9b6ad6', y: '#f2c94c', s: STEM } },
-    tulipRed: { rows: ['r.r.r', 'rrrrr', '.rrr.', '..s..', '.ss..', '..s..', '..s..'], c: { r: '#d9302a', s: STEM } },
+    snowdrop: { s: 1, rows: ['..sss..', '.s...s.', '.s..www', '.s..www', '.s..wgw', '.s..w.w', '.s.....', 'ls.....', '.s.....'], c: { s: STEM, l: '#4f9a35', w: '#ffffff', g: '#8fd05a' } },
+    crocus: { s: 1, rows: ['..p.p..', '.ppPpp.', '.pPyPp.', '.ppPpp.', '..ppp..', '...s...', '..ls...', '...sl..', '...s...'], c: { p: '#9b6ad6', P: '#7a4ab8', y: '#f2c94c', s: STEM, l: '#4f9a35' } },
+    tulipRed: { s: 1, rows: ['.r.r.r.', '.rrrrr.', '.rrrrR.', '..rRR..', '...s...', '.lls...', '..ls.l.', '...sll.', '...s...'], c: { r: '#d9302a', R: '#a82418', s: STEM, l: '#4f9a35' } },
     tulipYellow: { rows: ['y.y.y', 'yyyyy', '.yyy.', '..s..', '..ss.', '..s..', '..s..'], c: { y: '#f2c94c', s: STEM } },
-    daisy: { rows: ['.w.w.', 'wwyww', '.w.w.', '..s..', '.ss..', '..s..'], c: { w: '#ffffff', y: '#f2c94c', s: STEM } },
-    dandelion: { rows: ['.yyy.', 'yyyyy', '.yyy.', '..s..', '..ss.', '..s..', '..s..'], c: { y: '#f6d02f', s: STEM } },
-    poppy: { rows: ['.rrr.', 'rrkrr', '.rrr.', '..s..', '..s..', '.ss..', '..s..'], c: { r: '#e0352b', k: '#1d1a14', s: STEM } },
+    daisy: { s: 1, rows: ['..w.w..', '.wwyww.', 'wwyyyww', '.wwyww.', '..w.w..', '...s...', '..ls...', '...s...', '...s...'], c: { w: '#ffffff', y: '#f2c94c', s: STEM, l: '#4f9a35' } },
+    dandelion: { s: 1, rows: ['..yyy..', '.yyYyy.', 'yyYyYyy', '.yyYyy.', '..yyy..', '...s...', '..ls...', '...sl..', '...s...'], c: { y: '#f6d02f', Y: '#e0a820', s: STEM, l: '#4f9a35' } },
+    poppy: { s: 1, rows: ['..rrr..', '.rrrrR.', 'rrrkrrR', '.rrrrR.', '..rRR..', '...s...', '...s...', '..ls...', '...s...'], c: { r: '#e0352b', R: '#a82418', k: '#1d1a14', s: STEM, l: '#4f9a35' } },
     cornflower: { rows: ['b.b.b', '.bbb.', 'b.b.b', '..s..', '..ss.', '..s..'], c: { b: '#3d6fe0', s: STEM } },
     sunflower: { rows: ['.yyy.', 'yybyy', 'ybbby', 'yybyy', '.yyy.', '..s..', '.ss..', '..s..', '..s..'], c: { y: '#f6c12f', b: '#6b3f1d', s: STEM } },
     wheat: { rows: ['..y..', '.yy..', '..yy.', '.yy..', '..yy.', '..s..', '..s..', '..s..'], c: { y: '#e2bd5a', s: '#8e8a3a' } },
@@ -248,7 +248,7 @@
   // one of the colours, changing several times a second at random (candle light)
   const flicker = (t, seed, colors) => colors[Math.floor(hash(Math.floor(t * 7) + seed) * colors.length)];
   // flowers sway: their top rows (the blossom) lean 1 meadow px to the left or right
-  const SWAY = { snowdrop: 3, crocus: 3, tulipRed: 3, tulipYellow: 3, daisy: 3, dandelion: 3, poppy: 3, cornflower: 3, chamomile: 3, aster: 3, hellebore: 3, sunYoung: 3, sunBud: 4, sunBloom: 7 };
+  const SWAY = { snowdrop: 6, crocus: 5, tulipRed: 4, tulipYellow: 3, daisy: 5, dandelion: 5, poppy: 5, cornflower: 3, chamomile: 3, aster: 3, hellebore: 3, sunYoung: 3, sunBud: 4, sunBloom: 7 };
   const swayOf = (t, i) => Math.round(Math.sin(t * 1.4 + i * 2.1) * 0.8);
   // the star on the tree twinkles: brighter, then with three small rays
   const twinkle = (t, fl) => {
