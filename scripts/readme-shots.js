@@ -85,14 +85,97 @@ async function scene(browser, opts) {
   return page;
 }
 
-// Pixel barn of the tray icon, drawn behind the animal (scale: screen px per pixel)
-function barnHtml(scale) {
-  const { BARN, COLORS } = require('../src/tray-icon');
-  const rects = BARN.flatMap((row, y) =>
-    [...row].map((c, x) => (COLORS[c] ? `<rect x="${x}" y="${y}" width="1" height="1" fill="rgb(${COLORS[c]})"/>` : '')),
-  ).join('');
-  const n = BARN.length;
-  return `<svg id="barn" viewBox="0 0 ${n} ${n}" width="${n * scale}" height="${n * scale}" shape-rendering="crispEdges">${rects}</svg>`;
+// Background of the hero GIF: a pixel landscape (own drawing) with the barn of the tray icon,
+// hazy so it reads as far away. Runs in the page; sizes in canvas pixels (PX screen px each).
+function landscape({ barn, colors, w, h, px }) {
+  const c = document.createElement('canvas');
+  c.id = 'landscape';
+  c.width = w;
+  c.height = h;
+  c.style.cssText = `position: absolute; left: 0; bottom: 0; width: ${w * px}px; height: ${h * px}px; image-rendering: pixelated;`;
+  const g = c.getContext('2d');
+  const put = (x, y, col) => {
+    g.fillStyle = col;
+    g.fillRect(Math.round(x), Math.round(y), 1, 1);
+  };
+  const rect = (x, y, rw, rh, col) => {
+    g.fillStyle = col;
+    g.fillRect(x, y, rw, rh);
+  };
+  const disc = (cx, cy, r, col) => {
+    for (let y = -r; y <= r; y++) for (let x = -r; x <= r; x++) if (x * x + y * y <= r * r + r * 0.6) put(cx + x, cy + y, col);
+  };
+  const haze = (rgb, t) => `rgb(${rgb.map((v, i) => Math.round(v + ([196, 219, 238][i] - v) * t)).join(',')})`;
+
+  // sky in pixel bands, lighter towards the horizon
+  const SKY = ['#7fb0de', '#88b6e0', '#92bde3', '#9dc4e6', '#a9cbe9', '#b5d2ec', '#c0d9ee'];
+  SKY.forEach((col, i) => rect(0, Math.floor((i * h) / SKY.length), w, Math.ceil(h / SKY.length), col));
+
+  // sun with a soft ring
+  disc(122, 14, 9, '#fbe9a6');
+  disc(122, 14, 7, '#f8d64e');
+  disc(121, 13, 4, '#fde98a');
+
+  // clouds: a few overlapping discs with a flat, slightly shaded bottom
+  const cloud = (x, y, s) => {
+    [[0, 0, 4], [5, -2, 5], [11, 0, 4], [15, 1, 3]].forEach(([dx, dy, r]) => disc(x + dx * s, y + dy * s, r * s, '#ffffff'));
+    rect(x - 4 * s, y + 2 * s, 23 * s, 2 * s, '#e3eef7');
+  };
+  cloud(22, 12, 1);
+  cloud(178, 10, 1);
+  cloud(262, 20, 0.7);
+
+  // far hills
+  const hill = (base, amp, len, phase, col) => {
+    for (let x = 0; x < w; x++) {
+      const top = Math.round(base - amp * Math.sin((x / len) * Math.PI * 2 + phase));
+      rect(x, top, 1, h - top, col);
+    }
+  };
+  hill(40, 4, 170, 0.6, haze([118, 168, 92], 0.45));
+  hill(46, 3, 120, 2.2, haze([128, 176, 84], 0.3));
+
+  // fields: patchwork bands with furrows
+  const FIELDS = [
+    [0, 70, [214, 190, 98]], [70, 60, [150, 186, 86]], [130, 50, [196, 166, 92]], [180, 64, [136, 176, 82]], [244, 56, [218, 198, 112]],
+  ];
+  for (const [x0, fw, rgb] of FIELDS) {
+    rect(x0, 51, fw, h - 51, haze(rgb, 0.2));
+    for (let y = 53; y < h; y += 2) rect(x0, y, fw, 1, haze(rgb.map((v) => v * 0.86), 0.2)); // furrows
+  }
+  rect(0, 50, w, 1, haze([110, 150, 80], 0.3));
+
+  // trees: round crowns on short trunks
+  const tree = (x, base, r, t) => {
+    rect(x - 1, base - r - 2, 2, r + 2, haze([110, 78, 48], t));
+    disc(x, base - r - 3, r, haze([74, 132, 58], t));
+    disc(x - 1, base - r - 4, r - 2, haze([96, 156, 70], t));
+  };
+  tree(14, 56, 6, 0.35);
+  tree(96, 57, 7, 0.3);
+  tree(108, 59, 5, 0.3);
+  tree(172, 53, 5, 0.45);
+  tree(286, 56, 7, 0.35);
+
+  // the barn, bigger and hazy
+  const BS = 3;
+  const bx = 36;
+  const by = 64 - barn.length * BS;
+  barn.forEach((row, y) => [...row].forEach((ch, x) => colors[ch] && rect(bx + x * BS, by + y * BS, BS, BS, haze(colors[ch], 0.35))));
+
+  // fence in front of it all
+  const WOOD = '#c99a62';
+  const DARK = '#8a6438';
+  rect(0, h - 9, w, 1, WOOD);
+  rect(0, h - 8, w, 1, DARK);
+  rect(0, h - 5, w, 1, WOOD);
+  rect(0, h - 4, w, 1, DARK);
+  for (let x = 3; x < w; x += 14) {
+    rect(x, h - 12, 2, 12, WOOD);
+    rect(x + 1, h - 12, 1, 12, DARK);
+    put(x, h - 13, WOOD);
+  }
+  document.body.prepend(c);
 }
 
 // Hero GIF: the chicken walks away from the barn and back, so the last frame leads into the first.
@@ -113,12 +196,11 @@ async function hero(browser) {
   await page.addInitScript(stub, { month: MONTH, scale: 3, animal: 'chicken', sessions, width: W, height: H - GROUND });
   await page.goto(RENDERER);
   await page.addStyleTag({
-    content: `html { background: linear-gradient(180deg, #8fb8de 0%, #c4dbee 100%) top / 100% calc(100% - ${GROUND}px) no-repeat,
-        linear-gradient(180deg, #4f8a35 0 3px, #6aa443 3px 100%); }
-      body { position: relative; height: calc(100% - ${GROUND}px); background: transparent; }
-      #barn { position: absolute; left: 70px; bottom: 0; }`,
+    content: `html { background: linear-gradient(180deg, #4f8a35 0 3px, #6aa443 3px 100%); }
+      body { position: relative; height: calc(100% - ${GROUND}px); background: transparent; }`,
   });
-  await page.evaluate((svg) => document.body.insertAdjacentHTML('afterbegin', svg), barnHtml(5));
+  const { BARN, COLORS } = require('../src/tray-icon');
+  await page.evaluate(landscape, { barn: BARN, colors: COLORS, w: W / 2, h: (H - GROUND) / 2, px: 2 });
   for (let i = 0; i < 40 && !(await page.evaluate(() => typeof animal !== 'undefined' && !!animal)); i++) {
     await page.clock.runFor(50);
     await page.waitForTimeout(50);
