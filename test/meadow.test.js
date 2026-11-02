@@ -108,3 +108,19 @@ test('meadow: the hare in March takes the carrot nose, which comes back once it 
   assert.strictEqual(meadow.a.phase, 'away');
   assert.strictEqual(meadow.carrotGone, false);
 });
+
+test('meadow: the hedgehog in November hides under the leaf and takes it along', () => {
+  const meadow = visitor(10, 'hedgehog');
+  const leaf = M.layout(10).find((p) => p.f === 'mapleLeaf');
+  assert.ok(meadow.a.leaf);
+  assert.ok(meadow.a.x >= leaf.x && meadow.a.x <= leaf.x + leaf.w);
+  meadow.pointer(meadow.a.x + 6, meadow.a.y - 4);
+  meadow.step(0.05);
+  assert.strictEqual(meadow.a.phase, 'leaving');
+  for (let i = 0; i < 2000 && meadow.a.phase !== 'away'; i++) meadow.step(0.05);
+  assert.strictEqual(meadow.a.phase, 'away');
+  assert.ok(meadow.time < meadow.leafBack); // the leaf is gone for a while
+  meadow.step(31);
+  assert.ok(meadow.time >= meadow.leafBack);
+  assert.strictEqual(visitor(9, 'hedgehog').a.leaf, undefined); // October: no leaf to hide under
+});

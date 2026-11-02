@@ -689,6 +689,7 @@
     });
   }
 
+  const LEAF_SINK = 2; // px the maple leaf comes down when the hedgehog is under it
   // props a flying visitor can land on: the blossoms, and the lantern's ring
   const PERCH = new Set([...Object.keys(SWAY), 'lantern']);
 
@@ -722,21 +723,26 @@
       drawSign(ctx, time);
       return;
     }
-    for (const { f, i, s, rows, x, y } of layout(month)) {
-      const fl = FLOWERS[f];
-      const fr = (ANIM[f] && ANIM[f](time, fl)) || {};
-      const shown = fr.rows || rows;
-      let colors = fr.c || fl.c;
-      if (f === 'hatCarrot' && hidden.carrot) colors = { ...colors, o: null };
-      const px = x + (fr.dx || 0);
-      const py = y + (fr.dy || 0);
-      const top = SWAY[f] || 0;
-      put(ctx, shown.slice(0, top), colors, px + swayOf(time, i), py, false, s);
-      put(ctx, shown.slice(top), colors, px, py + top * s, false, s);
-      for (const [ex, ey, color] of fr.extra || []) {
-        ctx.fillStyle = color;
-        ctx.fillRect(px + ex * s, py + ey * s, s, s);
-      }
+    for (const item of layout(month)) {
+      if (item.f === 'mapleLeaf' && hidden.leaf) continue; // the visitor draws it (on top of the hedgehog)
+      drawProp(ctx, item, time, item.x, item.y, item.f === 'hatCarrot' && hidden.carrot ? { o: null } : null);
+    }
+  }
+
+  // one prop of the layout at x, y with its animation; recolor: colours to replace (null hides)
+  function drawProp(ctx, { f, i, s, rows }, time, x, y, recolor = null) {
+    const fl = FLOWERS[f];
+    const fr = (ANIM[f] && ANIM[f](time, fl)) || {};
+    const shown = fr.rows || rows;
+    const colors = recolor ? { ...(fr.c || fl.c), ...recolor } : fr.c || fl.c;
+    const px = x + (fr.dx || 0);
+    const py = y + (fr.dy || 0);
+    const top = SWAY[f] || 0;
+    put(ctx, shown.slice(0, top), colors, px + swayOf(time, i), py, false, s);
+    put(ctx, shown.slice(top), colors, px, py + top * s, false, s);
+    for (const [ex, ey, color] of fr.extra || []) {
+      ctx.fillStyle = color;
+      ctx.fillRect(px + ex * s, py + ey * s, s, s);
     }
   }
 
@@ -774,6 +780,7 @@
       this.mouse = null;
       this.sign = false; // a new version: the hanging sign stands in the corner
       this.time = 0;
+      this.leafBack = 0;
     }
 
     /** Whether a point (meadow pixels) is on the signpost. */
@@ -794,11 +801,17 @@
     }
 
     draw(ctx) {
-      drawGround(ctx, this.month, this.sign, this.time, { carrot: this.carrotGone });
       const a = this.a;
+      const leaf = a.phase !== 'away' && a.leaf;
+      drawGround(ctx, this.month, this.sign, this.time, { carrot: this.carrotGone, leaf: !!leaf || this.time < this.leafBack });
       // a visitor sitting on a blossom sways with it
       const dx = a.perch && a.phase === 'resting' && SWAY[a.perch.f] ? swayOf(this.time, a.perch.i) : 0;
       drawAnimal(ctx, a, dx);
+      if (leaf) {
+        // the hedgehog's leaf: lies on its back while it hides, goes along when it runs off
+        if (a.phase === 'leaving') drawProp(ctx, leaf, 0, Math.round(a.x) + a.leafDx, Math.round(a.y) - GROUND_Y + leaf.y + LEAF_SINK);
+        else drawProp(ctx, leaf, this.time, leaf.x, leaf.y + (a.phase === 'resting' ? LEAF_SINK : 0));
+      }
     }
 
     arrive() {
@@ -817,6 +830,12 @@
         this.a.perch = p;
         this.a.restX = Math.round(p.x + p.w / 2 - aw / 2);
         this.a.restY = p.y; // its feet on the blossom's top row
+      }
+      // the hedgehog, in November: creeps under the maple leaf (and runs off with it when disturbed)
+      const leaf = kind === 'hedgehog' && !this.sign && layout(this.month).find((p) => p.f === 'mapleLeaf');
+      if (leaf) {
+        this.a.leaf = leaf;
+        this.a.restX = Math.round(leaf.x + leaf.w / 2 - ANIMALS.hedgehog.frames[0][0].length / 2);
       }
       // the hare, in March: now and then it fetches the snowman's carrot nose and eats it
       if (kind === 'hare' && this.month === 2 && !this.carrotGone) this.a.fetchAt = 3 + Math.random() * 10;
@@ -899,6 +918,7 @@
         if (m && Math.hypot(m.x - (a.x + 6), m.y - (a.y - 4)) < 26) {
           a.phase = 'leaving';
           a.t = 0;
+          if (a.leaf) a.leafDx = a.leaf.x - Math.round(a.x);
           a.flip = true; // turn and go back out to the right
         }
         return;
@@ -915,6 +935,7 @@
         if (a.x > W + 8 || a.y < -8) {
           this.a = { phase: 'away', wait: this.minDelay + Math.random() * (this.maxDelay - this.minDelay) };
           this.carrotGone = false; // the snowman gets a new nose once the hare is gone
+          if (a.leaf) this.leafBack = this.time + 30; // a new leaf blows in a while after the hedgehog took it
         }
       }
     }
