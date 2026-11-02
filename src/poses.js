@@ -373,13 +373,16 @@
   // front view shows the tail feathers rising behind the head). Drawn at `x` (sheet frame
   // coordinates), the bottom row on the ground line. Rows/columns below are in these rows: legs: first
   // row of the legs (for kicking); shoulders: where the wings join the body (held up and flapping);
-  // wingEdges: columns and rows of the folded wings' inner edges (removed when the wings are spread).
+  // wingEdges: columns and rows (areas) of the folded wings' inner edges (removed when the wings are spread).
   const FRONT = {
     chicken: {
       x: 8,
       legs: 22,
       shoulders: 13,
-      wingEdges: { columns: [[3, 5], [10, 12]], rows: [13, 18] },
+      wingEdges: [
+        { columns: [[3, 5], [10, 12]], rows: [13, 18] },
+        { columns: [[5, 5], [10, 10]], rows: [19, 19] },
+      ],
       palette: { a: '#3a3737', b: '#222121', w: '#efe9e7', l: '#b7b3b2', g: '#827c7c', r: '#c84141', d: '#9e3e37', o: '#cf7b49' },
       rows: [
         '......arra......',

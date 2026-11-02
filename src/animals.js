@@ -430,14 +430,17 @@
     if (a.canFly) {
       const s = (v) => m(Math.round((v * size) / 32)); // chicken coordinates → this frame
       // wings at the body's outer edges, from the shoulder row
-      const { columns, rows } = drawn.wingEdges;
       const shoulderY = frontAt(0, drawn.shoulders)[1];
       const shoulders = [frontAt(0, 0)[0], frontAt(drawn.rows[0].length - 1, 0)[0]];
       const open = (f) =>
-        removeFrontWingEdges(
+        drawn.wingEdges.reduce(
+          (out, { columns, rows }) =>
+            removeFrontWingEdges(
+              out,
+              columns.map(([x0, x1]) => [frontAt(x0, 0)[0], frontAt(x1, 0)[0]]),
+              rows.map((y) => frontAt(0, y)[1]),
+            ),
           f,
-          columns.map(([x0, x1]) => [frontAt(x0, 0)[0], frontAt(x1, 0)[0]]),
-          rows.map((y) => frontAt(0, y)[1]),
         );
       held = [FRONT_WINGS.up, FRONT_WINGS.out, FRONT_WINGS.up, FRONT_WINGS.out].map((wing, i) => {
         const f = open(held[i % held.length]);
