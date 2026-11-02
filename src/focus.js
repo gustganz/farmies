@@ -94,7 +94,12 @@ async function focusWindows(s, tabId) {
     requestEditorTerminal(s);
     const { title, folder } = editorTarget(s);
     if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', title])) return true;
-    // window not found by title: let the editor open/focus the folder
+    // Not found by title (extension missing or not reloaded yet, session in another folder): the
+    // session runs in a terminal of this editor, so it is open. Opening the folder would start a
+    // new window: bring the editor's last used window instead (the terminal still shows itself if
+    // the extension runs there).
+    if (await powershell('focus-window.ps1', ['-Exe', editor.exe])) return true;
+    // editor not running at all: let it open the folder
     const args = s.distro ? ['--folder-uri', `vscode-remote://wsl+${s.distro}${folder}`] : [folder];
     return run(editor.cli, args.map((a) => `"${a}"`), { shell: true });
   }

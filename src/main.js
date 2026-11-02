@@ -9,7 +9,7 @@ const { SeenByFocus } = require('./seen-by-focus');
 const { focusedTerminalPids } = require('./editor-focus');
 const autostart = require('./autostart');
 const { uninstall } = require('./uninstall');
-const { ensureHooks, hookHome } = require('./hooks');
+const { ensureHooks, recheckEditorExtension, hookHome } = require('./hooks');
 const { WtTabs } = require('./wt-tabs');
 const { Updater } = require('./updater');
 
@@ -391,17 +391,14 @@ acquireLock().then((locked) => {
     });
     updater.start();
 
-    // set up / repair the Claude Code hooks on every start, and hourly: an editor (and its server,
-    // where the companion extension goes) may be installed or updated later, or the install at
-    // start may fail (WSL still starting)
-    const checkHooks = () =>
-      ensureHooks().then((status) => {
-        hookStatus = status;
-        debugLog('hooks', JSON.stringify(status));
-        updateTray();
-      });
-    checkHooks();
-    setInterval(checkHooks, 60 * 60 * 1000);
+    // set up / repair the Claude Code hooks on every start
+    ensureHooks().then((status) => {
+      hookStatus = status;
+      debugLog('hooks', JSON.stringify(status));
+      updateTray();
+    });
+    // the companion extension again every few minutes, in case it is missing (see hooks.js)
+    setInterval(recheckEditorExtension, 5 * 60 * 1000);
 
     ipcMain.on('ready', () => {
       sendDisplays();

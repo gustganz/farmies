@@ -31,33 +31,6 @@ function run(cmd, args, timeout = 30000) {
   });
 }
 
-// What the last setup runs did (the app hides every console): ~/.farmies/extension-install.log
-const INSTALL_LOG = path.join(BASE, 'extension-install.log');
-function logSetup(lines) {
-  try {
-    let old = fs.existsSync(INSTALL_LOG) ? fs.readFileSync(INSTALL_LOG, 'utf8') : '';
-    if (old.length > 20000) old = old.slice(-10000);
-    fs.writeFileSync(INSTALL_LOG, `${old}${new Date().toISOString()} ${lines.filter(Boolean).join('\n')}\n\n`);
-  } catch {
-    // only diagnostics
-  }
-}
-
-function runLogged(cmd, args, timeout) {
-  return new Promise((resolve) => {
-    execFile(cmd, args, { windowsHide: true, timeout }, (err, stdout, stderr) => {
-      const clean = (t) => String(t || '').replace(/\0/g, '').trim();
-      logSetup([
-        [cmd, ...args].join(' '),
-        err ? `failed: ${err.killed ? 'timeout' : `exit ${err.code}`}` : 'ok',
-        clean(stdout),
-        clean(stderr),
-      ]);
-      resolve(err ? null : stdout);
-    });
-  });
-}
-
 async function findTarget() {
   if (process.platform !== 'win32') return { distro: '', home: os.homedir() };
   const out = await run('wsl.exe', ['-e', 'sh', '-c', 'echo $WSL_DISTRO_NAME:$HOME']);
@@ -108,48 +81,72 @@ const hasExtension = (dir) => {
   }
 };
 
-/** Installs or updates the companion extension where it is missing. Returns the editors updated. */
+/**
+ * Installs or updates the companion extension where it is missing. Returns the editors updated.
+ * Cheap when nothing is missing (directory listings only), so it runs again now and then: an editor
+ * may be installed or updated later, or an install may fail (WSL still starting, server busy).
+ */
 async function ensureEditorExtension(target, home) {
-  if (!fs.existsSync(VSIX)) {
-    logSetup([`extension package missing: ${VSIX}`]);
-    return [];
-  }
+  if (!fs.existsSync(VSIX)) return [];
   const done = [];
   if (process.platform === 'win32') {
-    // the server CLI has to run inside WSL; the vsix is read from the Windows drive
-    const script = path.join(home, '.farmies', 'install-extension.sh');
-    writeIfChanged(
-      script,
-      '#!/bin/sh\n# Installs the Farmies companion extension into an editor server (written by the app).\n' +
-        '# newest server: cli/servers/<build>/server/bin (current layout) or bin/<commit>/bin (older)\n' +
-        'bin=$(ls -td "$HOME/$1"/cli/servers/*/server/bin/*-server "$HOME/$1"/bin/*/bin/*-server 2>/dev/null | head -n 1)\n' +
-        '[ -n "$bin" ] && "$bin" --install-extension "$2" --force\n',
-    );
-    for (const server of WSL_SERVERS) {
+    const missing = WSL_SERVERS.filter((server) => {
       const extDir = path.join(home, server, 'extensions');
-      if (!fs.existsSync(extDir) || hasExtension(extDir)) continue;
-      const scriptInWsl = `${target.home}/.farmies/install-extension.sh`;
-      if ((await runLogged('wsl.exe', ['-d', target.distro, '-e', 'sh', scriptInWsl, server, toWslPath(VSIX)], 120000)) !== null) {
-        done.push(server);
-      }
+      return fs.existsSync(extDir) && !hasExtension(extDir);
+    });
+    if (!missing.length) return done;
+    // The server CLI has to run inside WSL. The package is copied into the WSL home first, so
+    // nothing but fixed short arguments goes through wsl.exe: the app's own path is in the Windows
+    // temp folder and may contain spaces ("C:\Users\First Last\...").
+    const farmiesDir = path.join(home, '.farmies');
+    fs.mkdirSync(farmiesDir, { recursive: true });
+    fs.copyFileSync(VSIX, path.join(farmiesDir, 'farmies-terminal.vsix'));
+    writeIfChanged(
+      path.join(farmiesDir, 'install-extension.sh'),
+      '#!/bin/sh\n# Installs the Farmies companion extension into an editor server (written by the app).\n' +
+        '# newest server: cli/servers/<build>/server/bin (newer layout) or bin/<commit>/bin\n' +
+        'bin=$(ls -td "$HOME/$1"/cli/servers/*/server/bin/*-server "$HOME/$1"/bin/*/bin/*-server 2>/dev/null | head -n 1)\n' +
+        '[ -n "$bin" ] && "$bin" --install-extension "$HOME/.farmies/farmies-terminal.vsix" --force\n',
+    );
+    const scriptInWsl = `${target.home}/.farmies/install-extension.sh`;
+    for (const server of missing) {
+      await run('wsl.exe', ['-d', target.distro, '-e', 'sh', scriptInWsl, server], 120000);
+      // counts only once it is really there
+      if (hasExtension(path.join(home, server, 'extensions'))) done.push(server);
     }
   } else {
     for (const [dir, cli] of MAC_EDITORS) {
-      if (!fs.existsSync(cli) || hasExtension(path.join(os.homedir(), dir, 'extensions'))) continue;
-      if ((await runLogged(cli, ['--install-extension', VSIX, '--force'], 120000)) !== null) done.push(dir);
+      const extDir = path.join(os.homedir(), dir, 'extensions');
+      if (!fs.existsSync(cli) || hasExtension(extDir)) continue;
+      await run(cli, ['--install-extension', VSIX, '--force'], 120000);
+      if (hasExtension(extDir)) done.push(dir);
     }
   }
   return done;
+}
+
+let extensionRun = null;
+/** ensureEditorExtension for the environment set up at start (install.json); one run at a time. */
+function recheckEditorExtension() {
+  if (extensionRun) return extensionRun;
+  extensionRun = (async () => {
+    try {
+      const target = JSON.parse(fs.readFileSync(path.join(BASE, 'install.json'), 'utf8'));
+      return await ensureEditorExtension(target, hostPath(target, target.home));
+    } catch {
+      return [];
+    } finally {
+      extensionRun = null;
+    }
+  })();
+  return extensionRun;
 }
 
 /** Returns { ok, added, editors } or { ok: false, reason }. */
 async function ensureHooks() {
   try {
     const target = await findTarget();
-    if (!target) {
-      logSetup(['no WSL distribution found']);
-      return { ok: false, reason: 'keine WSL-Distribution gefunden' };
-    }
+    if (!target) return { ok: false, reason: 'keine WSL-Distribution gefunden' };
 
     const home = hostPath(target, target.home);
     const hookDir = path.join(home, '.farmies');
@@ -167,15 +164,13 @@ async function ensureHooks() {
     let editors = [];
     try {
       editors = await ensureEditorExtension(target, home);
-    } catch (e) {
+    } catch {
       // without the extension the editor window is still focused, just not the terminal
-      logSetup([`extension install: ${e.message}`]);
     }
     return { ok: true, added, editors };
   } catch (e) {
-    logSetup([`setup failed: ${e.message}`]);
     return { ok: false, reason: e.message };
   }
 }
 
-module.exports = { ensureHooks, hookHome, hostPath, BASE };
+module.exports = { ensureHooks, recheckEditorExtension, hookHome, hostPath, BASE };
