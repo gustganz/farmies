@@ -30,6 +30,7 @@ test('problems: window not found with current extensions offers an issue', () =>
 
 test('problems: failed extension install reports what the installer printed', () => {
   const p = extensionInstallFailed([{ editor: '.cursor-server', output: 'Error: boom' }], '0.1.18');
-  assert.match(p.issue.title, /\.cursor-server/);
+  assert.match(p.issue.title, /Cursor \(WSL\)/);
+  assert.match(p.detail, /Betroffen: Cursor \(WSL\)\./);
   assert.match(p.issue.body, /```\nError: boom\n```/);
 });

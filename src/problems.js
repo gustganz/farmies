@@ -33,8 +33,8 @@ function windowNotFound(s, windows, version) {
     return {
       message: `${editor}-Fenster bitte einmal neu laden`,
       detail:
-        `In ${editor} läuft noch die alte Farmies-Erweiterung. Danach findet ein Klick das Fenster ` +
-        'der Session wieder.\n\nBefehlspalette (Strg+Umschalt+P) → „Developer: Reload Window“',
+        `In ${editor} läuft noch die alte Farmies-Erweiterung. Nach dem Neuladen findet ein Klick ` +
+        'das Fenster der Session wieder.\n\nBefehlspalette (Strg+Umschalt+P) → „Developer: Reload Window“',
     };
   }
   return {
@@ -55,9 +55,15 @@ function windowNotFound(s, windows, version) {
   };
 }
 
+// install places (see hooks.js): WSL editor servers and macOS editors
+const PLACES = {
+  '.cursor-server': 'Cursor (WSL)', '.vscode-server': 'VS Code (WSL)', '.vscode-server-insiders': 'VS Code Insiders (WSL)',
+  '.windsurf-server': 'Windsurf (WSL)', '.cursor': 'Cursor', '.vscode': 'VS Code', '.vscode-insiders': 'VS Code Insiders', '.windsurf': 'Windsurf',
+};
+
 /** The companion extension could not be installed into these editor servers. */
 function extensionInstallFailed(failures, version) {
-  const names = failures.map((f) => f.editor).join(', ');
+  const names = failures.map((f) => PLACES[f.editor] || f.editor).join(', ');
   return {
     message: 'Farmies konnte seine Erweiterung nicht installieren',
     detail:
@@ -70,7 +76,7 @@ function extensionInstallFailed(failures, version) {
         '',
         ...environment(version),
         '',
-        ...failures.flatMap((f) => [`**${f.editor}**`, '```', f.output || '(keine Ausgabe)', '```']),
+        ...failures.flatMap((f) => [`**${PLACES[f.editor] || f.editor}** (\`${f.editor}\`)`, '```', f.output || '(keine Ausgabe)', '```']),
       ].join('\n'),
     },
   };
