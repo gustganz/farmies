@@ -268,13 +268,18 @@
     '....rRrrrRr....',
     '...R..RkR..R...',
   ];
+  // folded, the cloth hangs down along the stick to just above the handle
   const UMBRELLA_SHUT = [
     '.......k.......',
     '.......r.......',
     '......rrr......',
-    '......rwr......',
+    '......rwR......',
     '......rrR......',
     '......rwR......',
+    '......rrR......',
+    '.....rrwRR.....',
+    '.....rrrRR.....',
+    '......RRR......',
   ];
   const BIKE_HUB = { x: 6, y: 9, r: 5 };
   const ANIM = {
