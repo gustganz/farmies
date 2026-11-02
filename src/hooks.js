@@ -31,25 +31,28 @@ function run(cmd, args, timeout = 30000) {
   });
 }
 
-// What the last extension installs printed (the app hides every console): ~/.farmies/extension-install.log
+// What the last setup runs did (the app hides every console): ~/.farmies/extension-install.log
 const INSTALL_LOG = path.join(BASE, 'extension-install.log');
+function logSetup(lines) {
+  try {
+    let old = fs.existsSync(INSTALL_LOG) ? fs.readFileSync(INSTALL_LOG, 'utf8') : '';
+    if (old.length > 20000) old = old.slice(-10000);
+    fs.writeFileSync(INSTALL_LOG, `${old}${new Date().toISOString()} ${lines.filter(Boolean).join('\n')}\n\n`);
+  } catch {
+    // only diagnostics
+  }
+}
+
 function runLogged(cmd, args, timeout) {
   return new Promise((resolve) => {
     execFile(cmd, args, { windowsHide: true, timeout }, (err, stdout, stderr) => {
       const clean = (t) => String(t || '').replace(/\0/g, '').trim();
-      const entry = [
-        `${new Date().toISOString()} ${[cmd, ...args].join(' ')}`,
+      logSetup([
+        [cmd, ...args].join(' '),
         err ? `failed: ${err.killed ? 'timeout' : `exit ${err.code}`}` : 'ok',
         clean(stdout),
         clean(stderr),
-      ].filter(Boolean);
-      try {
-        let old = fs.existsSync(INSTALL_LOG) ? fs.readFileSync(INSTALL_LOG, 'utf8') : '';
-        if (old.length > 20000) old = old.slice(-10000);
-        fs.writeFileSync(INSTALL_LOG, `${old}${entry.join('\n')}\n\n`);
-      } catch {
-        // only diagnostics
-      }
+      ]);
       resolve(err ? null : stdout);
     });
   });
@@ -107,7 +110,10 @@ const hasExtension = (dir) => {
 
 /** Installs or updates the companion extension where it is missing. Returns the editors updated. */
 async function ensureEditorExtension(target, home) {
-  if (!fs.existsSync(VSIX)) return [];
+  if (!fs.existsSync(VSIX)) {
+    logSetup([`extension package missing: ${VSIX}`]);
+    return [];
+  }
   const done = [];
   if (process.platform === 'win32') {
     // the server CLI has to run inside WSL; the vsix is read from the Windows drive
@@ -140,7 +146,10 @@ async function ensureEditorExtension(target, home) {
 async function ensureHooks() {
   try {
     const target = await findTarget();
-    if (!target) return { ok: false, reason: 'keine WSL-Distribution gefunden' };
+    if (!target) {
+      logSetup(['no WSL distribution found']);
+      return { ok: false, reason: 'keine WSL-Distribution gefunden' };
+    }
 
     const home = hostPath(target, target.home);
     const hookDir = path.join(home, '.farmies');
@@ -158,11 +167,13 @@ async function ensureHooks() {
     let editors = [];
     try {
       editors = await ensureEditorExtension(target, home);
-    } catch {
+    } catch (e) {
       // without the extension the editor window is still focused, just not the terminal
+      logSetup([`extension install: ${e.message}`]);
     }
     return { ok: true, added, editors };
   } catch (e) {
+    logSetup([`setup failed: ${e.message}`]);
     return { ok: false, reason: e.message };
   }
 }
