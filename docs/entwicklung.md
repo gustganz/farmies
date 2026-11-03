@@ -24,6 +24,10 @@
   Terminal: `wt-watch.ps1` meldet den ausgewählten Tab des Vordergrundfensters; VS Code-Familie: die
   Erweiterung schreibt `~/.farmies/editor-focus/<pid>.json` (Shell-PID des aktiven Terminals, alle
   Terminal-Shells, Workspace-Name und -Ordner).
+  Gilt nur für Fertig und Fehler: Frage und Freigabe (`question`/`attention`) sind offene Dialoge in
+  Claude und bleiben, bis sich das Transkript danach ändert (beantwortet oder abgebrochen); auch ein
+  Klick auf die Blase räumt sie nicht weg, nur „Alle als gesehen markieren“ (`UNTIL_ANSWERED` in
+  `src/sessions.js`).
 - Updates: die App schaut kurz nach dem Start und dann stündlich nach einem neuen GitHub-Release
   (`src/updater.js`). Autostart: Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (`com.gustganz.farmies`), macOS `~/Library/LaunchAgents/com.gustganz.farmies.plist`.

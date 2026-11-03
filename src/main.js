@@ -1,7 +1,7 @@
 const { app, BrowserWindow, Menu, Tray, dialog, ipcMain, nativeImage, net, screen, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
-const { Sessions, NEEDS_USER_STATES } = require('./sessions');
+const { Sessions, NEEDS_USER_STATES, clearedBySeeing } = require('./sessions');
 const Animals = require('./animals');
 const { trayIcon } = require('./tray-icon');
 const { focusSession, EDITORS } = require('./focus');
@@ -265,9 +265,9 @@ function yesNoMenu(label, value, set) {
 }
 
 // A bubble counts as seen once the user stayed in the session's tab or editor terminal for a while
-// (see src/seen-by-focus.js).
+// (see src/seen-by-focus.js). Not questions and permission requests: they stay until answered.
 function markSeenByFocus() {
-  const pending = sessions.list.filter((s) => NEEDS_USER_STATES.includes(s.state));
+  const pending = sessions.list.filter(clearedBySeeing);
   let editorPids = null;
   const focused = (s) => {
     if (EDITORS[s.term]) {
@@ -442,7 +442,7 @@ acquireLock().then((locked) => {
     ipcMain.on('focus-session', (_e, id) => {
       const s = sessions.get(id);
       if (!s) return;
-      sessions.dismiss(id);
+      if (clearedBySeeing(s)) sessions.dismiss(id);
       focusSession(s, wtTabs.tabFor(s.id)).then((result) => {
         if (result && result.windows) showProblem(problems.windowNotFound(s, result.windows, app.getVersion()));
       });

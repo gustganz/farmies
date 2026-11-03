@@ -29,6 +29,12 @@ const NEEDS_USER = {
   Stop: 'done',
 };
 const NEEDS_USER_STATES = Object.values(NEEDS_USER);
+// A question or permission request is an open dialog in Claude: its bubble stays until it is
+// answered or cancelled there (transcript check below), not when the user merely saw it. Only the
+// menu "Alle als gesehen markieren" clears it, e.g. after a terminal was closed hard.
+const UNTIL_ANSWERED = ['question', 'attention'];
+// Bubbles that seeing (focus) or clicking clears: done and error, where nothing waits in Claude.
+const clearedBySeeing = (s) => NEEDS_USER_STATES.includes(s.state) && !UNTIL_ANSWERED.includes(s.state);
 
 // Context texts for the hover panel: one line, at most this many characters.
 const TEXT_MAX = 80;
@@ -285,4 +291,4 @@ class Sessions extends EventEmitter {
   }
 }
 
-module.exports = { Sessions, DIR, NEEDS_USER_STATES, oneLine, firstSentence, lastMessageTime };
+module.exports = { Sessions, DIR, NEEDS_USER_STATES, UNTIL_ANSWERED, clearedBySeeing, oneLine, firstSentence, lastMessageTime };

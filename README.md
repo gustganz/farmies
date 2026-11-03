@@ -62,6 +62,7 @@ Windows Terminal oder das Terminal in VS Code und Cursor.
 
 **Gesehen** gilt eine Blase auch von allein: wenn du in der Session weiterschreibst, oder wenn du
 5 Sekunden in ihrem Tab bzw. Terminal bist (war er schon vorne, als die Blase kam: 1 Minute).
+Fragen und Freigaben bleiben stehen, bis du sie in Claude beantwortet oder abgebrochen hast.
 
 **Packen und fallen lassen:** Das Tier lässt sich mit der Maus herumtragen, auch auf einen anderen
 Bildschirm.

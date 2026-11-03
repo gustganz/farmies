@@ -1,7 +1,7 @@
 // State of a session from its state file (src/sessions.js).
 const { test } = require('node:test');
 const assert = require('node:assert');
-const { Sessions } = require('../src/sessions');
+const { Sessions, clearedBySeeing } = require('../src/sessions');
 
 test('sessions: event time from the file, not the hook clock (WSL clock may lag behind Windows)', () => {
   const sessions = new Sessions();
@@ -78,4 +78,16 @@ test('sessions: done or failed counts as handled once the user went on in the se
   write(big, { type: 'user', timestamp: at(30), message: {} });
   assert.strictEqual(lastMessageTime(transcript), Date.parse(at(30)));
   assert.strictEqual(lastMessageTime(path.join(dir, 'missing.jsonl')), 0);
+});
+
+test('sessions: questions and permission requests stay until answered, seeing clears only done/error', () => {
+  const sessions = new Sessions();
+  const now = Date.now();
+  const state = (event) => sessions.toSession({ session_id: 'q', event, ts: Math.floor(now / 1000) }, now);
+  assert.strictEqual(clearedBySeeing(state('Question')), false);
+  assert.strictEqual(clearedBySeeing(state('PermissionRequest')), false);
+  assert.strictEqual(clearedBySeeing(state('Notification')), false);
+  assert.strictEqual(clearedBySeeing(state('Stop')), true);
+  assert.strictEqual(clearedBySeeing(state('StopFailure')), true);
+  assert.strictEqual(clearedBySeeing(state('PostToolUse')), false); // working: no bubble
 });

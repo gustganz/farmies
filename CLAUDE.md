@@ -18,7 +18,8 @@ developer and release notes: docs/entwicklung.md.
   A question counts as handled once the session transcript changed after it (cancelling fires no hook),
   done/error once the transcript has a new message after it (the user went on, e.g. a slash command).
   `src/seen-by-focus.js`: a bubble is seen when the user stays in the session's WT tab / editor terminal
-  (5 s, or 60 s if the focus was there all along).
+  (5 s, or 60 s if the focus was there all along). Only done/error: questions and permission requests
+  stay until answered or cancelled in Claude (a click only focuses; the menu "Alle als gesehen" clears).
 - `src/hooks.js` + `src/hook-settings.js`: on every start, installs hook.sh and adds/updates the hooks in
   `~/.claude/settings.json` (WSL default distro via `\\wsl.localhost`). Hook commands end in `|| true`:
   a hook must never block Claude (exit code 2 blocks prompts).
