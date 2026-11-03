@@ -13,11 +13,15 @@ const MAX_TRIES = 3; // starts in a row without a drawn window, then the package
 const assetName = (version, electron) => `Farmies-${version}-app-electron-${electron}.json.gz`;
 const packagesDir = (userData) => path.join(userData, 'app');
 
-/** "a/**" → every file below a, other patterns: that one file (as in package.json build.files) */
-function listFiles(root, patterns) {
+/**
+ * "a/**" → every file below a, other patterns: that one file (as in package.json build.files).
+ * skipMissing: leave out files that are not there (tests: the extension is built only for releases).
+ */
+function listFiles(root, patterns, skipMissing = false) {
   const out = [];
   const walk = (rel) => {
     const abs = path.join(root, rel);
+    if (skipMissing && !fs.existsSync(abs)) return;
     if (fs.statSync(abs).isDirectory()) for (const n of fs.readdirSync(abs).sort()) walk(`${rel}/${n}`);
     else out.push(rel);
   };
@@ -28,13 +32,14 @@ function listFiles(root, patterns) {
 /**
  * The package of the app in root: the files of build.files plus the runtime dependencies (their
  * node_modules folders, like electron-builder). version overrides package.json (start test).
+ * A missing file fails (a release must be complete) unless skipMissing.
  */
-function pack(root, electron, version) {
+function pack(root, electron, version, { skipMissing = false } = {}) {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
   if (version) pkg.version = version;
   const patterns = [...pkg.build.files, ...Object.keys(pkg.dependencies || {}).map((d) => `node_modules/${d}/**`)];
   const files = {};
-  for (const rel of listFiles(root, patterns)) files[rel] = fs.readFileSync(path.join(root, rel)).toString('base64');
+  for (const rel of listFiles(root, patterns, skipMissing)) files[rel] = fs.readFileSync(path.join(root, rel)).toString('base64');
   files['package.json'] = Buffer.from(JSON.stringify(pkg, null, 2)).toString('base64');
   files[MANIFEST] = Buffer.from(JSON.stringify({ version: pkg.version, electron })).toString('base64');
   return { name: assetName(pkg.version, electron), data: zlib.gzipSync(JSON.stringify({ files }), { level: 9 }) };

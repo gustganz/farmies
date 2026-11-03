@@ -119,7 +119,7 @@ test('windowsLaunch: PowerShell gets its own console via cmd start (detached it 
 test('install: small package is unpacked and the app restarts, no full download', { skip: process.platform === 'win32' }, async () => {
   const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-test-'));
   const { pack } = require('../src/app-package');
-  const { name, data } = pack(path.join(__dirname, '..'), '45.2.1', '0.2.0');
+  const { name, data } = pack(path.join(__dirname, '..'), '45.2.1', '0.2.0', { skipMissing: true });
   const digest = `sha256:${require('node:crypto').createHash('sha256').update(data).digest('hex')}`;
   let relaunched = 0;
   let quit = 0;

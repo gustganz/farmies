@@ -20,7 +20,7 @@ function fakePackage(userData, version, electron = '45.2.1') {
 
 test('pack → unpack gives the app files with the package version', () => {
   const dir = tmpDir();
-  const { name, data } = pkg.pack(ROOT, '45.2.1', '9.9.9');
+  const { name, data } = pkg.pack(ROOT, '45.2.1', '9.9.9', { skipMissing: true });
   assert.strictEqual(name, 'Farmies-9.9.9-app-electron-45.2.1.json.gz');
   assert.match(name, pkg.ASSET);
   assert.ok(data.length < 1024 * 1024, `package is ${data.length} bytes`);
