@@ -25,7 +25,13 @@
   Erweiterung schreibt `~/.farmies/editor-focus/<pid>.json` (Shell-PID des aktiven Terminals, alle
   Terminal-Shells, Workspace-Name und -Ordner).
 - Updates: die App schaut kurz nach dem Start und dann stündlich nach einem neuen GitHub-Release
-  (`src/updater.js`). Autostart: Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
+  (`src/updater.js`). Hat das Release ein App-Paket für dieselbe Electron-Version
+  (`Farmies-<v>-app-electron-<electron>.json.gz`, nur der eigene Code, unter 1 MB, `src/app-package.js`),
+  lädt die App nur das, entpackt es nach `<userData>/app/<v>/` und startet neu; `src/boot.js` (der
+  Einstiegspunkt) startet dann das neueste passende Paket statt des eingebauten Codes. Startet ein Paket
+  dreimal nicht bis zum gezeichneten Fenster (oder wirft beim Laden), wird es aufgegeben und das nächste
+  Update ist wieder die volle Datei. Ändert sich Electron, gibt es wie bisher nur die volle Datei. Die
+  Pakete haben nur Deutsch und Englisch als Electron-Sprachen (`electronLanguages`). Autostart: Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (`com.gustganz.farmies`), macOS `~/Library/LaunchAgents/com.gustganz.farmies.plist`.
 
 ## Starten und testen
@@ -51,8 +57,9 @@ App auf macOS und Windows (`scripts/smoke.js`); ein Bildschirmfoto hängt am Lau
 2. nach `main` pushen
 
 Gibt es zur Version noch kein Release, legt `.github/workflows/release.yml` es samt Tag `v<version>` an,
-lässt die Tests laufen und hängt `Farmies-<version>-portable.exe` und
-`Farmies-<version>-mac-{arm64,x64}.zip` an. Installierte Apps finden es von selbst.
+lässt die Tests laufen und hängt `Farmies-<version>-portable.exe`,
+`Farmies-<version>-mac-{arm64,x64}.zip` und das kleine App-Paket
+`Farmies-<version>-app-electron-<electron>.json.gz` an. Installierte Apps finden es von selbst.
 
 Pakete lokal bauen (`dist/`):
 

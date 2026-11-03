@@ -5,7 +5,7 @@
   "private": true,
   "description": "Pixel farm animals that tell you when a Claude Code session needs you",
   "author": "gustganz",
-  "main": "src/main.js",
+  "main": "src/boot.js",
   "scripts": {
     "start": "electron .",
     "test": "node --test",
@@ -13,6 +13,7 @@
     "dist:win": "npm run ext && npm run icon && electron-builder --win portable",
     "dist:mac": "npm run ext && npm run icon && electron-builder --mac",
     "dist:mac-unsigned": "sh scripts/build-mac-unsigned.sh",
+    "app-package": "node scripts/app-package.js",
     "ext": "cd extension && vsce package -o farmies-terminal.vsix --allow-missing-repository --skip-license"
   },
   "devDependencies": {
@@ -39,6 +40,10 @@
       "extension/farmies-terminal.vsix",
       "extension/package.json",
       "package.json"
+    ],
+    "electronLanguages": [
+      "de",
+      "en-US"
     ],
     "asarUnpack": [
       "src/*.ps1",

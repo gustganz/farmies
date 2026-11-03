@@ -3,17 +3,23 @@
 // FARMIES_DEBUG, waits for its snapshot and checks that it runs, draws the animal, logs no errors
 // and set up the Claude Code hooks (macOS/Linux; on Windows they need WSL). Runs on GitHub Actions
 // (macOS, Windows), where there is nobody to look:
-//   node scripts/smoke.js [out.png]
+//   node scripts/smoke.js [--package] [out.png]
 // The snapshot (animal with the hover panel) is copied to out.png (default dist/smoke-<platform>.png).
+// --package: the same with this checkout as small update package (src/app-package.js, version
+// 99.0.0) in the app's data folder: the app must start the package instead of its built-in code.
 const { spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const png = require('./png');
+const appPackage = require('../src/app-package');
 
 const ROOT = path.join(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
-const out = process.argv[2] || path.join(DIST, `smoke-${process.platform}.png`);
+const args = process.argv.slice(2);
+const withPackage = args.includes('--package');
+const PACKAGE_VERSION = '99.0.0';
+const out = args.find((a) => !a.startsWith('--')) || path.join(DIST, `smoke-${process.platform}${withPackage ? '-package' : ''}.png`);
 const TIMEOUT_MS = 60000;
 
 function executable() {
@@ -42,6 +48,13 @@ async function main() {
   const log = path.join(data, 'debug.log');
   fs.rmSync(capture, { force: true });
   fs.rmSync(log, { force: true });
+  const packages = appPackage.packagesDir(data);
+  fs.rmSync(packages, { recursive: true, force: true });
+  if (withPackage) {
+    const { data: gz } = appPackage.pack(ROOT, require('electron/package.json').version, PACKAGE_VERSION);
+    fs.mkdirSync(packages, { recursive: true });
+    appPackage.unpack(gz, path.join(packages, PACKAGE_VERSION));
+  }
 
   console.log(`starting ${exe}`);
   const app = spawn(exe, [], { env: { ...process.env, FARMIES_DEBUG: '1' }, stdio: 'inherit' });
@@ -68,6 +81,12 @@ async function main() {
 
   const lines = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split('\n') : [];
   problems.push(...lines.filter((l) => l.startsWith('error')));
+  if (withPackage) {
+    if (!lines.includes(`boot package ${PACKAGE_VERSION}`)) problems.push('the update package was not started');
+    if (fs.existsSync(path.join(packages, PACKAGE_VERSION, '.tries'))) problems.push('the package start was not counted as good');
+  } else if (lines.some((l) => l.startsWith('boot package'))) {
+    problems.push('started a package although there is none');
+  }
   const hooks = lines.find((l) => l.startsWith('hooks '));
   console.log(hooks || 'no hook status logged');
   if (process.platform !== 'win32') {
@@ -81,6 +100,10 @@ async function main() {
   }
 
   if (exited === null) app.kill();
+  if (withPackage) {
+    await sleep(1000);
+    fs.rmSync(packages, { recursive: true, force: true });
+  }
   if (problems.length) {
     console.error(`start test FAILED:\n- ${problems.join('\n- ')}`);
     process.exit(1);

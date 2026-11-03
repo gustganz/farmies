@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const { parseVersion, isNewer, assetFor, updateFrom } = require('../src/releases');
+const { assetName } = require('../src/app-package');
 
 const assets = [
   { name: 'Farmies-0.2.0-portable.exe', browser_download_url: 'https://x/exe', size: 10 },
@@ -37,7 +38,8 @@ test('updateFrom offers only newer, published releases', () => {
   assert.deepStrictEqual(updateFrom(release, '0.1.0', 'darwin', 'arm64'), {
     version: '0.2.0',
     page: release.html_url,
-    asset: { name: 'Farmies-0.2.0-mac-arm64.zip', url: 'https://x/arm', size: 20 },
+    asset: { name: 'Farmies-0.2.0-mac-arm64.zip', url: 'https://x/arm', size: 20, digest: null },
+    small: null,
   });
   assert.strictEqual(updateFrom(release, '0.2.0', 'win32', 'x64'), null);
   assert.strictEqual(updateFrom({ ...release, draft: true }, '0.1.0', 'win32', 'x64'), null);
@@ -47,4 +49,14 @@ test('updateFrom offers only newer, published releases', () => {
   assert.strictEqual(updateFrom({ ...release, assets: assets.slice(0, 1) }, '0.1.0', 'darwin', 'arm64'), null);
   // other platforms: offered without a file (opens the release page)
   assert.strictEqual(updateFrom({ ...release, assets: [] }, '0.1.0', 'linux', 'x64').asset, null);
+});
+
+test('updateFrom offers the small package only for the same Electron version', () => {
+  const small = { name: assetName('0.2.0', '45.2.1'), browser_download_url: 'https://x/app', size: 3, digest: 'sha256:ab' };
+  const withSmall = { ...release, assets: [...assets, small] };
+  assert.deepStrictEqual(updateFrom(withSmall, '0.1.0', 'win32', 'x64', '45.2.1').small, { name: small.name, url: 'https://x/app', size: 3, digest: 'sha256:ab' });
+  assert.strictEqual(updateFrom(withSmall, '0.1.0', 'win32', 'x64', '46.0.0').small, null);
+  assert.strictEqual(updateFrom(withSmall, '0.1.0', 'win32', 'x64').small, null);
+  // the full file stays required (and is the fallback)
+  assert.strictEqual(updateFrom({ ...release, assets: [small] }, '0.1.0', 'win32', 'x64', '45.2.1'), null);
 });

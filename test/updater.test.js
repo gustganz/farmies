@@ -115,3 +115,30 @@ test('windowsLaunch: PowerShell gets its own console via cmd start (detached it 
   assert.deepStrictEqual(args.slice(0, 5), ['/d', '/c', 'start', '""', '/min']);
   assert.strictEqual(Buffer.from(args.at(-1), 'base64').toString('utf16le'), 'Write-Output 1');
 });
+
+test('install: small package is unpacked and the app restarts, no full download', { skip: process.platform === 'win32' }, async () => {
+  const userData = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-test-'));
+  const { pack } = require('../src/app-package');
+  const { name, data } = pack(path.join(__dirname, '..'), '45.2.1', '0.2.0');
+  const digest = `sha256:${require('node:crypto').createHash('sha256').update(data).digest('hex')}`;
+  let relaunched = 0;
+  let quit = 0;
+  const app = { ...fakeApp('0.1.0'), getPath: () => userData, relaunch: () => relaunched++ };
+  const u = new Updater({ app, net: fakeNet({ 'https://x/app': () => new Response(data) }), quit: () => quit++ });
+  u.update = { version: '0.2.0', asset: { name: 'full', url: 'https://x/full' }, small: { name, url: 'https://x/app', size: data.length, digest } };
+  await u.install();
+  assert.strictEqual(u.update.status, 'downloading');
+  assert.deepStrictEqual([relaunched, quit], [1, 1]);
+  assert.ok(fs.existsSync(path.join(userData, 'app', '0.2.0', 'src', 'main.js')));
+  assert.ok(!fs.existsSync(path.join(userData, 'app', name)), 'download removed');
+  fs.rmSync(userData, { recursive: true });
+});
+
+test('download: a wrong checksum leaves nothing behind', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-test-'));
+  const u = new Updater({ app: fakeApp('0.1.0'), net: fakeNet({ 'https://x/f': () => new Response('abc') }) });
+  u.update = { version: '0.2.0' };
+  await assert.rejects(u.download({ url: 'https://x/f', size: 3, digest: `sha256:${'0'.repeat(64)}` }, path.join(dir, 'f')), /Prüfsumme/);
+  assert.deepStrictEqual(fs.readdirSync(dir), []);
+  fs.rmSync(dir, { recursive: true });
+});

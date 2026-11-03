@@ -79,6 +79,11 @@ jobs:
       - run: npm run ${{ matrix.dist }} -- --publish never
       - name: Start test (the unpacked app of this build)
         run: node scripts/smoke.js
+      - name: Start test with a small update package
+        run: node scripts/smoke.js --package
+      # the small update package is the same for every platform: built once, on Windows
+      - if: matrix.os == 'windows-latest'
+        run: npm run app-package
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -91,7 +96,7 @@ jobs:
           TAG: ${{ needs.check.outputs.tag }}
         run: |
           shopt -s nullglob
-          files=(dist/Farmies-*-portable.exe dist/Farmies-*-mac-*.zip)
+          files=(dist/Farmies-*-portable.exe dist/Farmies-*-mac-*.zip dist/Farmies-*-app-electron-*.json.gz)
           gh release upload "$TAG" "${files[@]}" --clobber
 
   publish:

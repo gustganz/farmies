@@ -3,12 +3,17 @@
 // Settings, dismissed sessions and the animal's position live outside the app, so they survive.
 //   Windows (portable exe): the new exe goes next to the old one, the old one is deleted.
 //   macOS: the zip is unpacked, signed ad hoc and replaces the .app bundle.
+// Small update: if the release has an app package for this Electron version (src/app-package.js),
+// only that is downloaded (well under 1 MB) and unpacked to <userData>/app/<v>/, then the app
+// restarts and src/boot.js starts it. If that fails, the full file is used.
+const crypto = require('crypto');
 const { EventEmitter } = require('events');
 const { execFile, spawn } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { LATEST_URL, updateFrom } = require('./releases');
+const appPackage = require('./app-package');
 
 const FIRST_CHECK_MS = 15 * 1000;
 const CHECK_INTERVAL_MS = 3600 * 1000;
@@ -77,7 +82,9 @@ class Updater extends EventEmitter {
     const res = await this.net.fetch(LATEST_URL, { headers: { Accept: 'application/vnd.github+json' } });
     if (res.status === 404) return null; // no release yet
     if (!res.ok) throw new Error(`GitHub antwortet mit HTTP ${res.status}`);
-    const found = updateFrom(await res.json(), this.app.getVersion(), process.platform, process.arch);
+    const found = updateFrom(await res.json(), this.app.getVersion(), process.platform, process.arch, process.versions.electron);
+    // a package of this version that did not start: take the full file
+    if (found && found.small && this.app.isPackaged && appPackage.isBad(this.app.getPath('userData'), found.version)) found.small = null;
     if (!found) {
       if (this.update) this.set(null);
     } else if (!this.update || this.update.version !== found.version || (!this.update.asset && found.asset)) {
@@ -106,6 +113,15 @@ class Updater extends EventEmitter {
       return;
     }
     this.set({ ...u, status: 'downloading', progress: 0, error: null });
+    if (u.small) {
+      try {
+        await this.installSmall(u);
+        this.quit();
+        return;
+      } catch {
+        this.set({ ...this.update, progress: 0 }); // on to the full file
+      }
+    }
     try {
       if (process.platform === 'win32') await this.installWindows(u);
       else if (process.platform === 'darwin') await this.installMac(u);
@@ -122,10 +138,12 @@ class Updater extends EventEmitter {
     const total = Number(res.headers.get('content-length')) || asset.size || 0;
     const part = `${file}.download`;
     const out = fs.createWriteStream(part);
+    const hash = crypto.createHash('sha256');
     let done = 0;
     let shown = -1;
     try {
       for await (const chunk of res.body) {
+        hash.update(chunk);
         if (!out.write(chunk)) await new Promise((resolve) => out.once('drain', resolve));
         done += chunk.length;
         const progress = total ? Math.floor((done / total) * 100) : 0;
@@ -140,8 +158,36 @@ class Updater extends EventEmitter {
       fs.rmSync(part, { force: true });
       throw e;
     }
-    if (total && done !== total) throw new Error('Download unvollständig');
+    const fail = (msg) => {
+      fs.rmSync(part, { force: true });
+      throw new Error(msg);
+    };
+    if (total && done !== total) fail('Download unvollständig');
+    // GitHub lists "sha256:<hex>" for release files
+    const digest = /^sha256:([0-9a-f]{64})$/i.exec(asset.digest || '');
+    if (digest && hash.digest('hex') !== digest[1].toLowerCase()) fail('Download beschädigt (Prüfsumme)');
     fs.renameSync(part, file);
+  }
+
+  /** Unpacks the app package and restarts the app (src/boot.js then starts the package). */
+  async installSmall(u) {
+    const base = appPackage.packagesDir(this.app.getPath('userData'));
+    fs.mkdirSync(base, { recursive: true });
+    const file = path.join(base, u.small.name);
+    try {
+      await this.download(u.small, file);
+      appPackage.unpack(fs.readFileSync(file), path.join(base, u.version));
+    } finally {
+      fs.rmSync(file, { force: true });
+    }
+    const exe = process.env.PORTABLE_EXECUTABLE_FILE;
+    if (process.platform === 'win32' && exe) {
+      // start the portable exe again once this one has quit (like a full update, without a swap)
+      const [cmd, args] = windowsLaunch(windowsScript(process.pid, exe, exe, exe));
+      spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true }).unref();
+    } else {
+      this.app.relaunch();
+    }
   }
 
   async installWindows(u) {

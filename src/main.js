@@ -428,6 +428,8 @@ acquireLock().then((locked) => {
       win.webContents.send('sprites', { sheets: bytes, animal: currentAnimal(), scale: currentScale() });
       win.webContents.send('sessions', sessions.list);
       win.webContents.send('update', updater.update);
+      // started from an update package (src/boot.js): this start counts as good
+      if (global.farmiesStarted) global.farmiesStarted();
       if (process.env.FARMIES_DEBUG) {
         // snapshot of the rendered page (with the hover panel open) for checking the look
         setTimeout(() => win.webContents.send('debug-panel'), 3000);

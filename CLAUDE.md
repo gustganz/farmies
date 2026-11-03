@@ -31,6 +31,9 @@ developer and release notes: docs/entwicklung.md.
 - `src/meadow.js`: the seasonal meadow at the bottom of the hover panel (props per month, visiting
   animals); UMD like `animals.js`. The hook stores short context (prompt, last tool step, result) for it.
 - `src/updater.js` + `src/releases.js`: GitHub Releases updater (hourly + menu "Nach Updates suchen").
+  Small updates: if the release has `Farmies-<v>-app-electron-<electron>.json.gz` for the running Electron
+  version (`src/app-package.js`, the app's own files only), it is unpacked to `<userData>/app/<v>/` and
+  `src/boot.js` (package.json main, keep it small and stable) starts it instead of the built-in code.
 
 ## Working without Windows, Mac or a display
 
@@ -54,6 +57,8 @@ only bump the version on main after Gust's OK for the release.
 
 - A release must be complete when it becomes public: `release.yml` creates it as a draft and publishes
   it only after all files are uploaded (installed apps update the moment they see it).
+- `src/boot.js` is never replaced by a package: installed apps keep their own copy. Packages must keep
+  working with the boot protocol (`global.farmiesStarted`, `app.getVersion` override).
 - Never rename release assets (`Farmies-<v>-portable.exe`, `Farmies-<v>-mac-<arch>.zip`): installed
   versions look for these names. Keep the updater able to update from older versions.
 - Every file the app loads must be in `build.files` (package.json); a test checks relative requires.

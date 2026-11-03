@@ -44,6 +44,8 @@ jobs:
         run: npx electron-builder ${{ matrix.target }} --dir --publish never
       - name: Start test
         run: node scripts/smoke.js
+      - name: Start test with a small update package
+        run: node scripts/smoke.js --package
       - uses: actions/upload-artifact@v4
         if: always()
         with:
