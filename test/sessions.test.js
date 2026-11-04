@@ -91,3 +91,16 @@ test('sessions: questions and permission requests stay until answered, seeing cl
   assert.strictEqual(clearedBySeeing(state('StopFailure')), true);
   assert.strictEqual(clearedBySeeing(state('PostToolUse')), false); // working: no bubble
 });
+
+test('sessions: waiting for background work counts as working, for a while', () => {
+  const sessions = new Sessions();
+  const now = Date.now();
+  const s = sessions.toSession({ session_id: 'a', event: 'Background', bg: '2', detail: 'npm test', ts: now / 1000 }, now);
+  assert.strictEqual(s.state, 'working');
+  assert.strictEqual(s.background, 2);
+  assert.strictEqual(s.detail, 'npm test');
+  // longer than a working session without a heartbeat
+  assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Background' }, now - 30 * 60 * 1000).state, 'working');
+  assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Background' }, now - 3 * 3600 * 1000).state, 'idle');
+  assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Stop', ts: now / 1000 }, now).background, 0);
+});

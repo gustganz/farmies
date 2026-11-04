@@ -20,6 +20,10 @@ const DELETE_AGE = 7 * 24 * 3600 * 1000;
 const POLL_MS = 1000;
 // The hook refreshes a working session at least once a minute while tools run.
 const WORKING_TIMEOUT = 5 * 60 * 1000;
+// Claude ended its turn but waits for background work (a shell, agent or monitor): working until
+// that work ends and wakes the session, which fires hooks again. No heartbeat meanwhile, so a long
+// limit, only against sessions closed while waiting.
+const BACKGROUND_TIMEOUT = 2 * 3600 * 1000;
 // Hook events that mean the session waits for the user, and the resulting state.
 const NEEDS_USER = {
   StopFailure: 'error',
@@ -183,6 +187,7 @@ class Sessions extends EventEmitter {
     if (state === 'idle' && ['UserPromptSubmit', 'PostToolUse'].includes(d.event) && Date.now() - ts < WORKING_TIMEOUT) {
       state = 'working';
     }
+    if (d.event === 'Background' && Date.now() - ts < BACKGROUND_TIMEOUT) state = 'working';
     if (NEEDS_USER_STATES.includes(state) && (this.dismissed.get(d.session_id) || 0) >= ts) state = 'idle';
     // the transcript lives in WSL too: compared with the hook's own clock
     const hookTs = (Number(d.ts) || 0) * 1000;
@@ -213,6 +218,8 @@ class Sessions extends EventEmitter {
       branch: oneLine(d.branch, 40),
       step: oneLine(d.step),
       detail: d.event === 'Stop' ? firstSentence(d.detail) : oneLine(d.detail),
+      // background work Claude waits for (number of tasks), 0: none
+      background: d.event === 'Background' ? Number(d.bg) || 1 : 0,
     };
   }
 

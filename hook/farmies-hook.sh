@@ -65,6 +65,7 @@ tty=""
 folder=""
 app=""
 pids=""
+bg=""
 
 # Where the session runs, so the buddy can bring exactly that window/tab to the front:
 #   term: cursor | vscode | vscode-insiders | windsurf | jetbrains | wt | apple-terminal | iterm | unknown
@@ -136,16 +137,31 @@ write_state() {
   # transcript: the app treats a question/permission as handled when the transcript changes later
   # (cancelling a question in Claude fires no hook)
   # step stays the last field before ts: the PostToolUse heartbeat replaces just these two
-  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","step":"%s","ts":%s}\n' \
+  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","bg":"%s","step":"%s","ts":%s}\n' \
     "$sid" "$event" "$cwd" "$(esc "$folder")" "$message" "$ntype" "$term" "$(esc "$app")" "$(esc "$tty")" \
     "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(esc "$branch")" "$task" "$title" "$detail" \
-    "$step" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
+    "$bg" "$step" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
 }
 
 # PreToolUse is only registered for AskUserQuestion: Claude asks the user a question.
 [ "$event" = PreToolUse ] && event=Question
 # a failed or denied tool call also means the session went on
 [ "$event" = PostToolUseFailure ] && event=PostToolUse
+# Claude ended its turn but still waits for background work (a shell, agent or monitor shown as
+# "1 shell" in Claude Code): not done yet. When that work ends, Claude Code wakes the session again
+# (UserPromptSubmit with a task notification). Newer Claude Code lists it in background_tasks
+# (in-flight work only, [] when none); inside a string value the name is escaped and does not match.
+if [ "$event" = Stop ]; then
+  tasks=$(printf '%s' "$input" | sed -n 's/.*"background_tasks"[[:space:]]*:[[:space:]]*\[[[:space:]]*\({.*\)/\1/p')
+  if [ -n "$tasks" ]; then
+    event=Background
+    tasks=${tasks%%\"session_crons\"*}
+    bg=$(printf '%s' "$tasks" | grep -o '"status"[[:space:]]*:' | wc -l | tr -d ' ')
+    detail=$(field command "$tasks")
+    [ -n "$detail" ] || detail=$(field description "$tasks")
+    detail=$(clip "$detail")
+  fi
+fi
 
 case "$event" in
   Notification | PermissionRequest | Stop | Question | StopFailure)
@@ -238,7 +254,9 @@ case "$event" in
       fi
     fi
     if [ "$event" = UserPromptSubmit ]; then
-      task=$(clip "$(field prompt)")
+      # background work that ended wakes the session with a notification instead of a prompt
+      prompt=$(field prompt)
+      case "$prompt" in "<task-notification>"*) ;; *) task=$(clip "$prompt") ;; esac
       st=$(field session_title)
       [ -n "$st" ] && title=$(clip "$st")
       step=""
@@ -246,6 +264,10 @@ case "$event" in
       step=$(tool_step)
     fi
     tty="" # detect afresh (it may have been read from the marker file above)
+    detect_context
+    write_state
+    ;;
+  Background)
     detect_context
     write_state
     ;;

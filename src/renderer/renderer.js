@@ -510,6 +510,11 @@ function lastStep(s) {
   if (s.state === 'question') return d ? `fragt: ${d}` : 'hat eine Frage an dich';
   if (s.state === 'error') return d ? `Fehler: ${d}` : 'mit einem Fehler abgebrochen';
   if (s.state === 'done') return d ? `fertig: ${d}` : s.step;
+  if (s.state === 'working' && s.background) {
+    const more = s.background > 1 ? ` (+${s.background - 1})` : '';
+    if (d) return `wartet auf: ${d}${more}`;
+    return s.background > 1 ? `wartet auf ${s.background} Hintergrund-Aufgaben` : 'wartet auf eine Hintergrund-Aufgabe';
+  }
   return s.step;
 }
 

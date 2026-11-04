@@ -105,3 +105,43 @@ test('hook: questions and errors as detail, long values cut without breaking the
     assert.ok(state().task.startsWith('xxx'), String(n));
   }
 });
+
+test('hook: a turn that ends while background work runs is not done (background_tasks)', () => {
+  const { home, hook, file, state } = setup();
+  hook('UserPromptSubmit', { prompt: 'Run the build' });
+  // an empty list (or none, older Claude Code) is a normal end
+  hook('Stop', { last_assistant_message: 'Done.', background_tasks: [], session_crons: [] });
+  assert.strictEqual(state().event, 'Stop');
+  hook('Stop', { last_assistant_message: 'Done.' });
+  assert.strictEqual(state().event, 'Stop');
+
+  hook('UserPromptSubmit', { prompt: 'Run the build' });
+  // the field's name inside the message does not count
+  hook('Stop', { last_assistant_message: 'see "background_tasks":[{"id":"x"}]', background_tasks: [] });
+  assert.strictEqual(state().event, 'Stop');
+  hook('UserPromptSubmit', { prompt: 'Run the build' });
+  hook('Stop', {
+    last_assistant_message: 'Waiting for the build.',
+    background_tasks: [
+      { id: 'b1', type: 'shell', status: 'running', description: 'Build "app"', command: 'npm run build' },
+      { id: 'a2', type: 'subagent', status: 'running', description: 'Review', agent_type: 'Explore' },
+    ],
+    session_crons: [],
+  });
+  assert.strictEqual(state().event, 'Background');
+  assert.strictEqual(state().detail, 'npm run build');
+  assert.strictEqual(state().bg, '2');
+  assert.strictEqual(state().task, 'Run the build');
+  // not a session waiting for the user: no marker for the tab title
+  assert.ok(!fs.existsSync(path.join(home, '.farmies', 'attn', 'abc123')));
+  // a subagent has no command
+  hook('Stop', { background_tasks: [{ id: 'a2', type: 'subagent', status: 'running', description: 'Review "x"' }] });
+  assert.strictEqual(state().detail, 'Review "x"');
+  assert.strictEqual(state().bg, '1');
+
+  // the finished work wakes the session with a notification: working again, the task stays
+  hook('UserPromptSubmit', { prompt: '<task-notification>\n<task-id>b1</task-id>\n</task-notification>' });
+  assert.strictEqual(state().event, 'UserPromptSubmit');
+  assert.strictEqual(state().task, 'Run the build');
+  assert.ok(fs.existsSync(file));
+});
