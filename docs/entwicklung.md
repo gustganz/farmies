@@ -20,7 +20,7 @@
   beim Start und alle 5 Minuten geprüft; scheitert die Installation zweimal, kommt ebenfalls ein Fehler
   mit Issue-Link.
 - Eine Blase gilt als gesehen, wenn der User im Tab/Terminal der Session bleibt (`src/seen-by-focus.js`):
-  5 s, wenn der Fokus nach der Blase dorthin kam, 60 s, wenn er die ganze Zeit dort war. Windows
+  5 s, auch wenn der Fokus schon vor der Blase dort war. Windows
   Terminal: `wt-watch.ps1` meldet den ausgewählten Tab des Vordergrundfensters; VS Code-Familie: die
   Erweiterung schreibt `~/.farmies/editor-focus/<pid>.json` (Shell-PID des aktiven Terminals, alle
   Terminal-Shells, Workspace-Name und -Ordner).

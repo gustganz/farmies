@@ -1,14 +1,11 @@
-// A bubble counts as seen when the user stays in the session's tab/terminal for a while:
-// briefly (SHORT_MS) when the focus came there after the bubble appeared, longer (LONG_MS) when it
-// was there all along (the user may have been looking at another screen when Claude finished).
-const SHORT_MS = 5 * 1000;
-const LONG_MS = 60 * 1000;
+// A bubble counts as seen when the user stays in the session's tab/terminal for a while (SEEN_MS),
+// also when the focus was there all along.
+const SEEN_MS = 5 * 1000;
 
 class SeenByFocus {
-  constructor({ shortMs = SHORT_MS, longMs = LONG_MS } = {}) {
-    this.shortMs = shortMs;
-    this.longMs = longMs;
-    this.watched = new Map(); // session id → { ts, focusedAtStart, lost, since }
+  constructor({ seenMs = SEEN_MS } = {}) {
+    this.seenMs = seenMs;
+    this.watched = new Map(); // session id → { ts, since }
   }
 
   /**
@@ -23,17 +20,15 @@ class SeenByFocus {
       const isFocused = Boolean(focused(s));
       let w = this.watched.get(s.id);
       if (!w || w.ts !== s.ts) {
-        w = { ts: s.ts, focusedAtStart: isFocused, lost: false, since: isFocused ? now : null };
+        w = { ts: s.ts, since: null };
         this.watched.set(s.id, w);
       }
       if (!isFocused) {
-        w.lost = true;
         w.since = null;
         continue;
       }
       if (w.since === null) w.since = now;
-      const needed = w.focusedAtStart && !w.lost ? this.longMs : this.shortMs;
-      if (now - w.since >= needed) {
+      if (now - w.since >= this.seenMs) {
         seen.push(s.id);
         this.watched.delete(s.id);
       }
@@ -43,4 +38,4 @@ class SeenByFocus {
   }
 }
 
-module.exports = { SeenByFocus, SHORT_MS, LONG_MS };
+module.exports = { SeenByFocus, SEEN_MS };
