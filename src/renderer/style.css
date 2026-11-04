@@ -31,6 +31,7 @@
   --green: #3f8f2f;
   --blue: #2f6fd0;
   --orange: #d9730d; /* new version, see Bubbles.UPDATE */
+  --amber: #b07b0c; /* background work runs long, see Bubbles.GLYPHS.overdue */
   --gray: #9e9c86;
   /* outline with notched corners */
   --pixel-border:
@@ -86,8 +87,9 @@ body {
   top: 100%;
 }
 
-/* "done" just waits for the next prompt: no bobbing */
-.bubble.state-done {
+/* "done" just waits for the next prompt, "overdue" is only a hint: no bobbing */
+.bubble.state-done,
+.bubble.state-overdue {
   animation: none;
 }
 
@@ -280,6 +282,10 @@ body {
   color: var(--blue);
 }
 
+.label-overdue {
+  color: var(--amber);
+}
+
 .big-when {
   align-self: start;
   padding-top: 2px;
@@ -362,6 +368,10 @@ body {
   background: var(--green);
 }
 
+.tag-overdue {
+  background: var(--amber);
+}
+
 /* working: the colours turn around the frame (stepped like pixels). They avoid red/blue/green,
    which mean "needs you". */
 .tag-working,
@@ -440,6 +450,10 @@ body {
 
 .m-state-done {
   background: var(--green);
+}
+
+.m-state-overdue {
+  background: var(--amber);
 }
 
 .m-when {

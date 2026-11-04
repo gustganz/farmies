@@ -92,15 +92,22 @@ test('sessions: questions and permission requests stay until answered, seeing cl
   assert.strictEqual(clearedBySeeing(state('PostToolUse')), false); // working: no bubble
 });
 
-test('sessions: waiting for background work counts as working, for a while', () => {
+test('sessions: waiting for background work counts as working, after 5 minutes it asks', () => {
   const sessions = new Sessions();
   const now = Date.now();
   const s = sessions.toSession({ session_id: 'a', event: 'Background', bg: '2', detail: 'npm test', ts: now / 1000 }, now);
   assert.strictEqual(s.state, 'working');
   assert.strictEqual(s.background, 2);
   assert.strictEqual(s.detail, 'npm test');
-  // longer than a working session without a heartbeat
-  assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Background' }, now - 30 * 60 * 1000).state, 'working');
-  assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Background' }, now - 3 * 3600 * 1000).state, 'idle');
   assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Stop', ts: now / 1000 }, now).background, 0);
+
+  // still running 5 minutes after the turn ended: "schon fertig?", cleared by seeing like done
+  const late = () => sessions.toSession({ session_id: 'a', event: 'Background' }, now - 6 * 60 * 1000);
+  assert.strictEqual(late().state, 'overdue');
+  assert.ok(clearedBySeeing(late()));
+  // seen or clicked: working again, and it asks again 5 minutes later
+  sessions.dismissed.set('a', now - 1000);
+  assert.strictEqual(late().state, 'working');
+  sessions.dismissed.set('a', now - 5 * 60 * 1000 - 1000);
+  assert.strictEqual(late().state, 'overdue');
 });

@@ -16,7 +16,7 @@ const out = process.argv[3] || `bubbles-preview-${process.argv[2] || 1}.png`;
 const SCALE = 2.5; // app default
 const CELL_W = 260;
 const CELL_H = 240;
-const STATES = ['error', 'attention', 'question', 'done', 'done', 'attention', 'done'];
+const STATES = ['error', 'attention', 'question', 'overdue', 'done', 'attention', 'done'];
 
 const hex = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16)).concat(255);
 const sessions = Array.from({ length: count }, (_, i) => ({ id: `s${i}`, state: STATES[i % STATES.length] }));

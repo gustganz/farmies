@@ -48,7 +48,9 @@ Das war's. Farmies richtet sich beim Start selbst ein, startet ab jetzt mit dem 
 <p align="center"><img src="docs/img/blasen.png" alt="Vier Sprechblasen: Fehler, Freigabe nötig, Frage an dich, Fertig" width="720"></p>
 
 Arbeitet Claude noch, läuft das Tier herum, auch wenn Claude nur noch auf ein Script im Hintergrund
-wartet („1 shell“). Wartet etwas auf dich, hüpft es mit Sprechblasen.
+wartet („1 shell“). Läuft das Script länger als 5 Minuten, fragt eine Sanduhr-Blase „Schon fertig?“
+(gesehen oder angeklickt, fragt sie 5 Minuten später wieder). Wartet etwas auf dich, hüpft es mit
+Sprechblasen.
 Ist nichts los, legt es sich schlafen. 💤
 
 ## Alle Sessions auf einen Blick

@@ -173,11 +173,12 @@ function land(d) {
 // --- behaviour ---------------------------------------------------------------------------------
 
 // States in which a session waits for the user, most urgent first.
-const URGENCY = ['error', 'attention', 'question', 'done'];
+const URGENCY = ['error', 'attention', 'question', 'overdue', 'done'];
 const LABELS = {
   error: 'Abgebrochen – Fehler',
   attention: 'Freigabe nötig',
   question: 'Frage an dich',
+  overdue: 'Schon fertig?',
   done: 'Fertig',
   working: 'Arbeitet …',
   idle: 'Bereit',
@@ -412,6 +413,7 @@ const STATE_WORD = {
   error: 'Fehler',
   attention: 'Freigabe nötig',
   question: 'Frage an dich',
+  overdue: 'läuft noch',
   done: 'fertig',
   working: 'arbeitet',
   idle: 'bereit',
@@ -510,7 +512,7 @@ function lastStep(s) {
   if (s.state === 'question') return d ? `fragt: ${d}` : 'hat eine Frage an dich';
   if (s.state === 'error') return d ? `Fehler: ${d}` : 'mit einem Fehler abgebrochen';
   if (s.state === 'done') return d ? `fertig: ${d}` : s.step;
-  if (s.state === 'working' && s.background) {
+  if (s.background) {
     const more = s.background > 1 ? ` (+${s.background - 1})` : '';
     if (d) return `wartet auf: ${d}${more}`;
     return s.background > 1 ? `wartet auf ${s.background} Hintergrund-Aufgaben` : 'wartet auf eine Hintergrund-Aufgabe';

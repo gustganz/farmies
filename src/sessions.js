@@ -21,9 +21,10 @@ const POLL_MS = 1000;
 // The hook refreshes a working session at least once a minute while tools run.
 const WORKING_TIMEOUT = 5 * 60 * 1000;
 // Claude ended its turn but waits for background work (a shell, agent or monitor): working until
-// that work ends and wakes the session, which fires hooks again. No heartbeat meanwhile, so a long
-// limit, only against sessions closed while waiting.
-const BACKGROUND_TIMEOUT = 2 * 3600 * 1000;
+// that work ends and wakes the session, which fires hooks again. When that takes longer than this,
+// the animal asks the user to have a look ("overdue": maybe it hangs, maybe it is done). Seen or
+// clicked, it works again and asks again after the same time.
+const BACKGROUND_OVERDUE = 5 * 60 * 1000;
 // Hook events that mean the session waits for the user, and the resulting state.
 const NEEDS_USER = {
   StopFailure: 'error',
@@ -32,12 +33,13 @@ const NEEDS_USER = {
   Question: 'question',
   Stop: 'done',
 };
-const NEEDS_USER_STATES = Object.values(NEEDS_USER);
+const NEEDS_USER_STATES = [...Object.values(NEEDS_USER), 'overdue'];
 // A question or permission request is an open dialog in Claude: its bubble stays until it is
 // answered or cancelled there (transcript check below), not when the user merely saw it. Only the
 // menu "Alle als gesehen markieren" clears it, e.g. after a terminal was closed hard.
 const UNTIL_ANSWERED = ['question', 'attention'];
-// Bubbles that seeing (focus) or clicking clears: done and error, where nothing waits in Claude.
+// Bubbles that seeing (focus) or clicking clears: done, error and overdue, where nothing waits in
+// Claude.
 const clearedBySeeing = (s) => NEEDS_USER_STATES.includes(s.state) && !UNTIL_ANSWERED.includes(s.state);
 
 // Context texts for the hover panel: one line, at most this many characters.
@@ -187,8 +189,9 @@ class Sessions extends EventEmitter {
     if (state === 'idle' && ['UserPromptSubmit', 'PostToolUse'].includes(d.event) && Date.now() - ts < WORKING_TIMEOUT) {
       state = 'working';
     }
-    if (d.event === 'Background' && Date.now() - ts < BACKGROUND_TIMEOUT) state = 'working';
-    if (NEEDS_USER_STATES.includes(state) && (this.dismissed.get(d.session_id) || 0) >= ts) state = 'idle';
+    const dismissed = this.dismissed.get(d.session_id) || 0;
+    if (d.event === 'Background') state = Date.now() - Math.max(ts, dismissed) < BACKGROUND_OVERDUE ? 'working' : 'overdue';
+    else if (NEEDS_USER_STATES.includes(state) && dismissed >= ts) state = 'idle';
     // the transcript lives in WSL too: compared with the hook's own clock
     const hookTs = (Number(d.ts) || 0) * 1000;
     if ((state === 'question' || state === 'attention') && this.transcriptChangedSince(d, hookTs)) state = 'idle';
