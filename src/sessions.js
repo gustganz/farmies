@@ -23,7 +23,8 @@ const WORKING_TIMEOUT = 5 * 60 * 1000;
 // Claude ended its turn but waits for background work (a shell, agent or monitor): working until
 // that work ends and wakes the session, which fires hooks again. When that takes longer than this,
 // the animal asks the user to have a look ("overdue": maybe it hangs, maybe it is done). Seen or
-// clicked, it works again and asks again after the same time.
+// clicked, it asks no more: the session rests (idle) until the work ends and wakes it. Shells that
+// keep running by themselves (a dev server) the hook records as a normal Stop (done) with bg.
 const BACKGROUND_OVERDUE = 5 * 60 * 1000;
 // Hook events that mean the session waits for the user, and the resulting state.
 const NEEDS_USER = {
@@ -190,7 +191,10 @@ class Sessions extends EventEmitter {
       state = 'working';
     }
     const dismissed = this.dismissed.get(d.session_id) || 0;
-    if (d.event === 'Background') state = Date.now() - Math.max(ts, dismissed) < BACKGROUND_OVERDUE ? 'working' : 'overdue';
+    if (d.event === 'Background') {
+      if (dismissed >= ts) state = 'idle';
+      else state = Date.now() - ts < BACKGROUND_OVERDUE ? 'working' : 'overdue';
+    }
     else if (NEEDS_USER_STATES.includes(state) && dismissed >= ts) state = 'idle';
     // the transcript lives in WSL too: compared with the hook's own clock
     const hookTs = (Number(d.ts) || 0) * 1000;
@@ -223,6 +227,8 @@ class Sessions extends EventEmitter {
       detail: d.event === 'Stop' ? firstSentence(d.detail) : oneLine(d.detail),
       // background work Claude waits for (number of tasks), 0: none
       background: d.event === 'Background' ? Number(d.bg) || 1 : 0,
+      // shells that keep running after a finished turn (a dev server; step: the command), 0: none
+      running: d.event === 'Stop' ? Number(d.bg) || 0 : 0,
     };
   }
 

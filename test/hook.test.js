@@ -139,6 +139,29 @@ test('hook: a turn that ends while background work runs is not done (background_
   assert.strictEqual(state().detail, 'Review "x"');
   assert.strictEqual(state().bg, '1');
 
+  // a shell that keeps running by itself (a server) is not waited for: done, the shell noted
+  const shell = (command) => ({ id: 's1', type: 'shell', status: 'running', description: 'x', command });
+  hook('Stop', { last_assistant_message: 'Runs on http://localhost:8080/.', background_tasks: [shell('npx pnpm docs:build && npx pnpm docs:serve')] });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().bg, '1');
+  assert.strictEqual(state().step, 'npx pnpm docs:build && npx pnpm docs:serve');
+  assert.strictEqual(state().detail, 'Runs on http://localhost:8080/.');
+  for (const c of ['npm run dev', 'npm start', 'python3 -m http.server 8000', 'tail -f app.log', 'vite --watch']) {
+    hook('Stop', { last_assistant_message: 'Running.', background_tasks: [shell(c)] });
+    assert.strictEqual(state().event, 'Stop', c);
+  }
+  // Claude asks the user: done, even when it is a build
+  hook('Stop', { last_assistant_message: 'The build runs. Shall I commit?\n', background_tasks: [shell('npm run build')] });
+  assert.strictEqual(state().event, 'Stop');
+  hook('Stop', { last_assistant_message: 'Waiting for the build.', background_tasks: [shell('npm run build')] });
+  assert.strictEqual(state().event, 'Background');
+  // a subagent is always waited for, also next to a server and after a question
+  hook('Stop', {
+    last_assistant_message: 'Shall I?',
+    background_tasks: [shell('npm run dev'), { id: 'a2', type: 'subagent', status: 'running', description: 'Review' }],
+  });
+  assert.strictEqual(state().event, 'Background');
+
   // the finished work wakes the session with a notification: working again, the task stays
   hook('UserPromptSubmit', { prompt: '<task-notification>\n<task-id>b1</task-id>\n</task-notification>' });
   assert.strictEqual(state().event, 'UserPromptSubmit');

@@ -105,9 +105,21 @@ test('sessions: waiting for background work counts as working, after 5 minutes i
   const late = () => sessions.toSession({ session_id: 'a', event: 'Background' }, now - 6 * 60 * 1000);
   assert.strictEqual(late().state, 'overdue');
   assert.ok(clearedBySeeing(late()));
-  // seen or clicked: working again, and it asks again 5 minutes later
+  // seen or clicked: it rests and does not ask again (no back and forth)
   sessions.dismissed.set('a', now - 1000);
-  assert.strictEqual(late().state, 'working');
-  sessions.dismissed.set('a', now - 5 * 60 * 1000 - 1000);
-  assert.strictEqual(late().state, 'overdue');
+  assert.strictEqual(late().state, 'idle');
+  assert.strictEqual(late().background, 1);
+});
+
+test('sessions: done while a server keeps running is done, the shell is noted', () => {
+  const sessions = new Sessions();
+  const now = Date.now();
+  const d = { session_id: 'a', event: 'Stop', bg: '1', step: 'pnpm docs:serve', ts: now / 1000 };
+  const s = sessions.toSession(d, now - 60 * 60 * 1000);
+  assert.strictEqual(s.state, 'done');
+  assert.strictEqual(s.running, 1);
+  assert.strictEqual(s.background, 0);
+  sessions.dismissed.set('a', now);
+  assert.strictEqual(sessions.toSession(d, now - 60 * 60 * 1000).state, 'idle');
+  assert.strictEqual(sessions.toSession({ ...d, bg: '' }, now).running, 0);
 });

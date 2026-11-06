@@ -151,15 +151,33 @@ write_state() {
 # "1 shell" in Claude Code): not done yet. When that work ends, Claude Code wakes the session again
 # (UserPromptSubmit with a task notification). Newer Claude Code lists it in background_tasks
 # (in-flight work only, [] when none); inside a string value the name is escaped and does not match.
+# But a shell that never ends by itself (a dev server, a watcher) is not waited for: Claude handed the
+# session back to the user, it is done. So are shells when Claude's last message asks the user.
+# Agents and monitors are always waited for.
+handed_over() {
+  cmds=$(printf '%s' "$1" | grep -oE '"command"[[:space:]]*:[[:space:]]*"([^"\\]|\\.)*"')
+  [ "$(printf '%s\n' "$cmds" | grep -c .)" = "$bg" ] || return 1 # not all of them are shells
+  case "$(field last_assistant_message | sed -E 's/(\\n|[[:space:]*_`)])+$//')" in *'?') return 0 ;; esac
+  printf '%s\n' "$cmds" | grep -viqE "$SERVER_RE" && return 1
+  return 0
+}
+# commands that keep running until stopped: servers, watchers, followed logs
+SERVER_RE='(^|[^a-zA-Z])serve|[:[:space:]"](dev|start|preview|watch|up)([[:space:]":]|$)|--watch|watch[[:space:]]|nodemon|http\.server|runserver|tail[[:space:]]+-[a-zA-Z]*[fF]|docker[[:space:]-]+compose[[:space:]]+up'
 if [ "$event" = Stop ]; then
   tasks=$(printf '%s' "$input" | sed -n 's/.*"background_tasks"[[:space:]]*:[[:space:]]*\[[[:space:]]*\({.*\)/\1/p')
   if [ -n "$tasks" ]; then
-    event=Background
     tasks=${tasks%%\"session_crons\"*}
     bg=$(printf '%s' "$tasks" | grep -o '"status"[[:space:]]*:' | wc -l | tr -d ' ')
-    detail=$(field command "$tasks")
-    [ -n "$detail" ] || detail=$(field description "$tasks")
-    detail=$(clip "$detail")
+    if handed_over "$tasks"; then
+      # only shells that keep running (a server, a watcher) or Claude asked the user: done, the
+      # running shells are just noted (step: the first one's command)
+      step=$(clip "$(field command "$tasks")")
+    else
+      event=Background
+      detail=$(field command "$tasks")
+      [ -n "$detail" ] || detail=$(field description "$tasks")
+      detail=$(clip "$detail")
+    fi
   fi
 fi
 

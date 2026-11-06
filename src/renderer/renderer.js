@@ -512,6 +512,8 @@ function lastStep(s) {
   if (s.state === 'question') return d ? `fragt: ${d}` : 'hat eine Frage an dich';
   if (s.state === 'error') return d ? `Fehler: ${d}` : 'mit einem Fehler abgebrochen';
   if (s.state === 'done') return d ? `fertig: ${d}` : s.step;
+  // done and seen, a server still running: what keeps running
+  if (s.running && s.step) return `läuft weiter: ${s.step}`;
   if (s.background) {
     const more = s.background > 1 ? ` (+${s.background - 1})` : '';
     if (d) return `wartet auf: ${d}${more}`;
@@ -543,7 +545,8 @@ function showDetails(id) {
   // the name is on the hovered tag already: here its state, Claude's name for the session (or where
   // it runs) and the time
   const where = s.title && s.title !== s.task ? s.title : `in ${termName(s)}`;
-  l1.append(el('span', `m-state m-state-${s.state}`, STATE_WORD[s.state] || STATE_WORD.idle), el('span', 'm-where', where), el('span', 'm-when', ago(s.ts)));
+  const word = (STATE_WORD[s.state] || STATE_WORD.idle) + (s.running ? ' · Shell läuft' : '');
+  l1.append(el('span', `m-state m-state-${s.state}`, word), el('span', 'm-where', where), el('span', 'm-when', ago(s.ts)));
   const l3 = el('div', 'm-last');
   if (s.branch) {
     const br = el('span', 'm-branch');
