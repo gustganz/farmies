@@ -17,6 +17,8 @@ developer and release notes: docs/entwicklung.md.
 - `src/sessions.js`: reads the state files → states error/attention/question/done/working/idle.
   A question counts as handled once the session transcript changed after it (cancelling fires no hook),
   done/error once the transcript has a new message after it (the user went on, e.g. a slash command).
+  `src/alive.js`: sessions that ended without SessionEnd (tab closed, WSL shut down) are found by
+  Claude's pid + start time (`cpid`/`cstart` from the hook, `ps` via `wsl.exe`) and their files removed.
   `src/seen-by-focus.js`: a bubble is seen when the user stays in the session's WT tab / editor terminal
   (5 s, also if the focus was there all along). Only done/error/overdue: questions and permission requests
   stay until answered or cancelled in Claude (a click only focuses; the menu "Alle als gesehen" clears).

@@ -65,13 +65,16 @@ tty=""
 folder=""
 app=""
 pids=""
+cpid=""
+cstart=""
 bg=""
 
 # Where the session runs, so the buddy can bring exactly that window/tab to the front:
 #   term: cursor | vscode | vscode-insiders | windsurf | jetbrains | wt | apple-terminal | iterm | unknown
 #   app:  macOS bundle id of the host application (macOS passes it to every process)
 #   tty:  terminal device of the Claude process · pids: its ancestors (editor terminals are
-#         matched by their shell pid, see extension/extension.js)
+#         matched by their shell pid, see extension/extension.js) · cpid, cstart: Claude's own pid
+#         and start time (ps lstart), to see whether the session still runs
 detect_context() {
   app="${__CFBundleIdentifier:-}"
   case "$PATH" in
@@ -107,6 +110,17 @@ detect_context() {
   for _ in 1 2 3 4 5 6 7 8; do
     case "$pid" in "" | 0 | 1) break ;; esac
     pids="$pids $pid"
+    # Claude itself: the first ancestor that is not the shell running this hook command. Its pid and
+    # start time let the app see a session that ended without SessionEnd (terminal closed, WSL shut down).
+    if [ -z "$cpid" ]; then
+      case "$(ps -o comm= -p "$pid" 2>/dev/null | tr -d ' ')" in
+        sh | dash | bash | zsh | ash | -sh | -bash | -zsh | */sh | */bash | */zsh) ;;
+        *)
+          cpid=$pid
+          cstart=$(TZ=UTC0 LC_ALL=C ps -o lstart= -p "$pid" 2>/dev/null | sed -E 's/^ +//; s/ +/ /g')
+          ;;
+      esac
+    fi
     if [ -z "$tty" ]; then
       t=$(ps -o tty= -p "$pid" 2>/dev/null | tr -d ' ')
       case "$t" in "" | "?" | "??") ;; *) tty="$t" ;; esac
@@ -137,9 +151,9 @@ write_state() {
   # transcript: the app treats a question/permission as handled when the transcript changes later
   # (cancelling a question in Claude fires no hook)
   # step stays the last field before ts: the PostToolUse heartbeat replaces just these two
-  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","bg":"%s","step":"%s","ts":%s}\n' \
+  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","cpid":"%s","cstart":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","bg":"%s","step":"%s","ts":%s}\n' \
     "$sid" "$event" "$cwd" "$(esc "$folder")" "$message" "$ntype" "$term" "$(esc "$app")" "$(esc "$tty")" \
-    "$pids" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(esc "$branch")" "$task" "$title" "$detail" \
+    "$pids" "$cpid" "$(esc "$cstart")" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(esc "$branch")" "$task" "$title" "$detail" \
     "$bg" "$step" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
 }
 

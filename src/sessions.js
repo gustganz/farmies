@@ -3,6 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { EventEmitter } = require('events');
+const { goneSessions } = require('./alive');
 
 const DIR = path.join(os.homedir(), '.farmies', 'sessions');
 // sessions marked as seen in the panel (id → time), kept across restarts and updates
@@ -18,6 +19,10 @@ const TRANSCRIPT_TAIL = 256 * 1024;
 const SHOW_MAX_AGE = 24 * 3600 * 1000;
 const DELETE_AGE = 7 * 24 * 3600 * 1000;
 const POLL_MS = 1000;
+// How often the app checks whether the sessions' Claude processes still run (src/alive.js), and how
+// old a state file must be before its session may count as gone (a hook may just be writing it).
+const ALIVE_MS = 30 * 1000;
+const ALIVE_GRACE = 60 * 1000;
 // The hook refreshes a working session at least once a minute while tools run.
 const WORKING_TIMEOUT = 5 * 60 * 1000;
 // Claude ended its turn but waits for background work (a shell, agent or monitor): working until
@@ -130,6 +135,38 @@ class Sessions extends EventEmitter {
     fs.mkdirSync(DIR, { recursive: true });
     this.poll();
     setInterval(() => this.poll(), POLL_MS);
+    setInterval(() => this.removeGone(), ALIVE_MS);
+    this.removeGone();
+  }
+
+  /**
+   * Removes the state files of sessions whose Claude process no longer runs: they ended without the
+   * SessionEnd hook (terminal closed, WSL shut down, restart), see src/alive.js.
+   */
+  async removeGone(check = goneSessions) {
+    if (this.checking || !this.list.length) return;
+    this.checking = true;
+    try {
+      const gone = await check(this.list);
+      const now = Date.now();
+      let removed = 0;
+      for (const s of gone) {
+        const full = path.join(DIR, `${s.id}.json`);
+        try {
+          if (now - fs.statSync(full).mtimeMs < ALIVE_GRACE) continue;
+        } catch {
+          continue;
+        }
+        for (const ext of ['json', 'tab', 'restore', 'restored']) fs.rmSync(path.join(DIR, `${s.id}.${ext}`), { force: true });
+        this.cache.delete(`${s.id}.json`);
+        removed++;
+      }
+      if (removed) this.poll();
+    } catch {
+      // try again next time
+    } finally {
+      this.checking = false;
+    }
   }
 
   poll() {
@@ -218,6 +255,9 @@ class Sessions extends EventEmitter {
         .split(' ')
         .filter(Boolean)
         .map(Number),
+      // Claude's own process (newer hooks): pid and start time, see src/alive.js
+      cpid: Number(d.cpid) || 0,
+      cstart: d.cstart || '',
       distro: d.distro || '',
       // context for the hover panel (from hook versions that write it)
       task: oneLine(d.task),
@@ -307,4 +347,4 @@ class Sessions extends EventEmitter {
   }
 }
 
-module.exports = { Sessions, DIR, NEEDS_USER_STATES, UNTIL_ANSWERED, clearedBySeeing, oneLine, firstSentence, lastMessageTime };
+module.exports = { Sessions, DIR, ALIVE_GRACE, NEEDS_USER_STATES, UNTIL_ANSWERED, clearedBySeeing, oneLine, firstSentence, lastMessageTime };

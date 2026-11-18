@@ -123,3 +123,32 @@ test('sessions: done while a server keeps running is done, the shell is noted', 
   assert.strictEqual(sessions.toSession(d, now - 60 * 60 * 1000).state, 'idle');
   assert.strictEqual(sessions.toSession({ ...d, bg: '' }, now).running, 0);
 });
+
+test('sessions: the state files of sessions that ended without SessionEnd are removed', async () => {
+  const { DIR, ALIVE_GRACE } = require('../src/sessions');
+  const fs = require('fs');
+  const path = require('path');
+  fs.mkdirSync(DIR, { recursive: true });
+  const old = new Date(Date.now() - ALIVE_GRACE - 1000);
+  const write = (id, time) => {
+    const file = path.join(DIR, `${id}.json`);
+    fs.writeFileSync(file, JSON.stringify({ session_id: id, event: 'Stop', ts: Math.floor(Date.now() / 1000) }));
+    fs.utimesSync(file, time, time);
+    return file;
+  };
+  const ghost = write('farmies-test-ghost', old);
+  const fresh = write('farmies-test-fresh', new Date());
+  fs.writeFileSync(path.join(DIR, 'farmies-test-ghost.tab'), '{}');
+  try {
+    const sessions = new Sessions();
+    sessions.poll();
+    await sessions.removeGone(async (list) => list.filter((s) => s.id.startsWith('farmies-test-')));
+    assert.strictEqual(fs.existsSync(ghost), false);
+    assert.strictEqual(fs.existsSync(path.join(DIR, 'farmies-test-ghost.tab')), false);
+    // just written: maybe a hook of a session that is starting
+    assert.strictEqual(fs.existsSync(fresh), true);
+    assert.strictEqual(sessions.get('farmies-test-ghost'), undefined);
+  } finally {
+    for (const f of [ghost, fresh]) fs.rmSync(f, { force: true });
+  }
+});
