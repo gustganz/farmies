@@ -35,6 +35,30 @@ function parsePs(out) {
   return procs;
 }
 
+// Native Windows sessions (no distro): Claude's pid and start time as Windows FILETIME (UTC), the
+// same value the PowerShell hook records. Prints "pid filetime" lines (filetime empty when access is
+// denied, e.g. an elevated Claude) and the mark.
+const winScript = (pids) =>
+  `Get-Process -Id ${pids.join(',')} -ErrorAction SilentlyContinue | ForEach-Object { $t = ''; ` +
+  `try { $t = $_.StartTime.ToFileTimeUtc() } catch { }; '{0} {1}' -f $_.Id, $t }; '${MARK}'`;
+
+/** winScript output → Map pid → start ('' if unknown) */
+function parseWin(out) {
+  const procs = new Map();
+  for (const line of String(out || '').split(/\r?\n/)) {
+    const m = /^(\d+) ?(\d*)$/.exec(line.trim());
+    if (m) procs.set(Number(m[1]), m[2]);
+  }
+  return procs;
+}
+
+/** Whether a native Windows session's Claude process is gone (procs: from parseWin). */
+function isGoneWin(s, procs) {
+  if (!procs.has(s.cpid)) return true;
+  const start = procs.get(s.cpid);
+  return Boolean(start && s.cstart && start !== String(s.cstart));
+}
+
 /** `wsl.exe -l --running -q` output (UTF-16) → names of the running distros */
 function parseRunning(out) {
   const text = Buffer.isBuffer(out) ? out.toString('utf16le') : String(out || '');
@@ -86,9 +110,10 @@ function run(cmd, args, opts = {}) {
  * (no pids, ps or wsl.exe failing) count as running.
  */
 async function goneSessions(list, platform = process.platform) {
-  const checkable = list.filter((s) => pidsOf(s).length && (platform !== 'win32' || s.distro));
-  if (!checkable.length) return [];
   const gone = [];
+  if (platform === 'win32') gone.push(...(await goneNative(list)));
+  const checkable = list.filter((s) => pidsOf(s).length && (platform !== 'win32' || s.distro));
+  if (!checkable.length) return gone;
   const byDistro = new Map();
   for (const s of checkable) {
     const key = platform === 'win32' ? s.distro : '';
@@ -99,7 +124,7 @@ async function goneSessions(list, platform = process.platform) {
   if (platform === 'win32') {
     // asked without starting WSL: a distro that is not running has no sessions left
     const out = await run('wsl.exe', ['-l', '--running', '-q'], { encoding: 'buffer' });
-    if (out === null) return [];
+    if (out === null) return gone;
     running = parseRunning(out);
   }
   for (const [distro, sessions] of byDistro) {
@@ -120,4 +145,16 @@ async function goneSessions(list, platform = process.platform) {
   return gone;
 }
 
-module.exports = { goneSessions, isGone, parsePs, parseRunning };
+/** Native Windows sessions (Claude Code on Windows itself) whose Claude process is gone. */
+async function goneNative(list, runPs = run) {
+  const sessions = list.filter((s) => !s.distro && s.cpid > 4);
+  if (!sessions.length) return [];
+  const pids = [...new Set(sessions.map((s) => s.cpid))];
+  // nothing but digits go into the script
+  const out = await runPs('powershell.exe', ['-NoProfile', '-NonInteractive', '-Command', winScript(pids)]);
+  if (out === null || !out.includes(MARK)) return [];
+  const procs = parseWin(out);
+  return sessions.filter((s) => isGoneWin(s, procs));
+}
+
+module.exports = { goneSessions, goneNative, isGone, isGoneWin, parsePs, parseWin, parseRunning };

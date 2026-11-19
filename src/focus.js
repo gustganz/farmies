@@ -1,11 +1,13 @@
 // Brings the window and tab of a Claude Code session to the front, whatever it runs in:
 // editors (Cursor, VS Code, Windsurf: window + integrated terminal via the companion extension),
-// JetBrains IDEs (window), Windows Terminal (tab), macOS Terminal/iTerm (tab), other macOS apps.
-const { spawn } = require('child_process');
+// JetBrains IDEs (window), Windows Terminal (tab), Windows consoles (PowerShell, cmd: the console
+// Claude runs in), macOS Terminal/iTerm (tab), other macOS apps.
+const { spawn, execFile } = require('child_process');
 const fs = require('fs');
 const path = require('path');
 const { scriptPath } = require('./wt-tabs');
-const { hookHome } = require('./hooks');
+const { sessionHome, isNative } = require('./hooks');
+const { DIR } = require('./sessions');
 const { editorWindows, editorWindowFor } = require('./editor-focus');
 
 // VS Code family: Windows process, CLI, macOS bundle id
@@ -27,13 +29,52 @@ function run(cmd, args, opts = {}) {
   });
 }
 
-const powershell = (script, args) =>
-  run('powershell.exe', ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', scriptPath(script), ...args]);
+const PS_ARGS = ['-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File'];
+const powershell = (script, args) => run('powershell.exe', [...PS_ARGS, scriptPath(script), ...args]);
+
+// The title marker of a session's tab (also what wt-tabs.js looks for)
+const marker = (s) => `(!) ${s.project} #${s.id.slice(0, 4)}`;
+
+/**
+ * Native Windows sessions in a console (Windows Terminal, classic console window): see
+ * focus-console.ps1. Remembers the tab it finds, like wt-tabs.js does for WSL sessions (for the next
+ * click and for seeing a bubble by focus). Resolves true if found.
+ */
+function focusConsole(s, markOnly = false) {
+  const args = ['-ProcessId', String(s.cpid || 0), '-Marker', marker(s), '-Hwnd', String(s.hwnd || 0)];
+  if (markOnly) args.push('-MarkOnly');
+  return new Promise((resolve) => {
+    execFile('powershell.exe', [...PS_ARGS, scriptPath('focus-console.ps1'), ...args], { windowsHide: true, timeout: 15000 }, (err, stdout) => {
+      const tab = /^tab ([\d.]+)\s*$/m.exec(String(stdout || ''));
+      if (tab) {
+        try {
+          fs.writeFileSync(path.join(DIR, `${s.id}.tab`), JSON.stringify({ id: tab[1] }));
+        } catch {
+          // found anyway
+        }
+      }
+      resolve(!err);
+    });
+  });
+}
+
+// Native sessions whose tab was looked for already (once per session and app run)
+const tabLooked = new Set();
+/**
+ * Native Windows sessions in Windows Terminal: learns the session's tab in the background (the tab
+ * title shows the marker for a moment), so a bubble can count as seen when the user is in that tab.
+ * WSL sessions do this in the hook (farmies-hook.sh).
+ */
+function learnTab(s, tabId) {
+  if (!isNative(s) || EDITORS[s.term] || s.term === 'jetbrains' || !s.cpid || tabId || tabLooked.has(s.id)) return;
+  tabLooked.add(s.id);
+  focusConsole(s, true);
+}
 
 // Asks the companion extension in the editor to show the terminal whose shell belongs to the
 // session (see extension/extension.js).
 function requestEditorTerminal(s) {
-  const home = hookHome();
+  const home = sessionHome(s);
   if (!home || !s.pids.length) return;
   try {
     fs.writeFileSync(path.join(home, '.farmies', 'focus-request.json'), JSON.stringify({ ts: Date.now(), pids: s.pids }));
@@ -87,7 +128,7 @@ async function focusWindows(s, tabId) {
   const editor = EDITORS[s.term];
   if (editor) {
     requestEditorTerminal(s);
-    const win = editorWindowFor(hookHome(), s.pids);
+    const win = editorWindowFor(sessionHome(s), s.pids);
     if (win) {
       if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', win.name])) return true;
       // title not as expected: the folder is open in that window, so the editor focuses it
@@ -95,12 +136,17 @@ async function focusWindows(s, tabId) {
     } else if (await powershell('focus-window.ps1', ['-Exe', editor.exe, '-Title', s.project])) {
       return true;
     }
-    return { windows: editorWindows(hookHome()) };
+    return { windows: editorWindows(sessionHome(s)) };
   }
   if (s.term === 'jetbrains') return powershell('focus-window.ps1', ['-Exe', JETBRAINS_EXES, '-Title', s.project]);
+  if (isNative(s)) {
+    // the tab found before, else the console Claude runs in
+    if (tabId && (await powershell('focus-wt.ps1', ['-TabId', tabId, '-Exact']))) return true;
+    return focusConsole(s);
+  }
   // Windows Terminal (also the fallback): the tab id wt-tabs.js learned, else the title marker
   // "(!) <project> #<session id prefix>" (see hook/farmies-hook.sh)
-  return powershell('focus-wt.ps1', ['-TabId', tabId || '', '-Marker', `(!) ${s.project} #${s.id.slice(0, 4)}`, '-Fallback', `(!) ${s.project}`]);
+  return powershell('focus-wt.ps1', ['-TabId', tabId || '', '-Marker', marker(s), '-Fallback', `(!) ${s.project}`]);
 }
 
 const editorFolderArgs = (s, folder) =>
@@ -111,7 +157,7 @@ async function focusMac(s) {
   const editor = EDITORS[s.term];
   if (editor) {
     requestEditorTerminal(s);
-    const win = editorWindowFor(hookHome(), s.pids);
+    const win = editorWindowFor(sessionHome(s), s.pids);
     return run('open', ['-b', s.app || editor.bundle, (win && win.folder) || folder]);
   }
   const tty = s.tty.replace(/[^a-z0-9]/gi, '');
@@ -129,4 +175,4 @@ function focusSession(s, tabId) {
   return Promise.resolve(false);
 }
 
-module.exports = { focusSession, EDITORS };
+module.exports = { focusSession, learnTab, EDITORS };

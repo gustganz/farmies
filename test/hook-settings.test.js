@@ -43,3 +43,14 @@ test('removeHooks removes only Farmies hooks', () => {
   assert.ok(removeHooks(file) > 0);
   assert.deepStrictEqual(commands(file), ['echo other']);
 });
+
+test('native Windows hooks: no "|| true" (Windows PowerShell cannot parse it), own timeout', () => {
+  const file = tmpFile();
+  const cmd = 'powershell.exe -NoProfile -File "C:/Users/x/.farmies/hook.ps1"';
+  addHooks(file, cmd, { orTrue: false, timeout: 15 });
+  const settings = JSON.parse(fs.readFileSync(file, 'utf8'));
+  const hooks = Object.values(settings.hooks).flatMap((groups) => groups.flatMap((g) => g.hooks));
+  assert.ok(hooks.every((h) => !h.command.includes('||') && h.timeout === 15));
+  assert.ok(commands(file).includes(`${cmd} Stop`));
+  assert.strictEqual(addHooks(file, cmd, { orTrue: false, timeout: 15 }), 0, 'second run changes nothing');
+});

@@ -241,7 +241,8 @@ class Sessions extends EventEmitter {
     const folder = d.folder || d.cwd || '';
     return {
       id: d.session_id,
-      project: path.posix.basename(folder) || '?',
+      // native Windows sessions have Windows paths
+      project: folder.split(/[\\/]/).filter(Boolean).pop() || '?',
       cwd: d.cwd || '',
       folder,
       message: d.message || '',
@@ -259,6 +260,8 @@ class Sessions extends EventEmitter {
       cpid: Number(d.cpid) || 0,
       cstart: d.cstart || '',
       distro: d.distro || '',
+      // native Windows: the first ancestor window of the session (a console window, the terminal)
+      hwnd: Number(d.hwnd) || 0,
       // context for the hover panel (from hook versions that write it)
       task: oneLine(d.task),
       title: oneLine(d.title),

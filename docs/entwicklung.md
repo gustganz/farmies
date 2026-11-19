@@ -6,11 +6,20 @@
   Statusdatei nach `~/.farmies/sessions/` (unter WSL ins Windows-Home). Für die Wiese im Hover-Panel
   speichert er kurze Auszüge (letzter Prompt, letzter Tool-Aufruf, letzte Antwort, je max. 300 Zeichen);
   nichts davon verlässt den Rechner.
+- `hook/farmies-hook.ps1` macht dasselbe für Claude Code direkt unter Windows (in PowerShell, cmd,
+  Windows Terminal oder einem Editor gestartet, ohne WSL). Die App trägt ihn zusätzlich in
+  `%USERPROFILE%\.claude\settings.json` ein. Der Befehl dort muss in Git Bash und in PowerShell laufen
+  (Claude nimmt PowerShell, wenn Git Bash fehlt), deshalb ohne `|| true`; das Skript endet selbst
+  immer mit 0. Ein Klick auf so eine Session hängt sich an Claudes Konsole (`src/focus-console.ps1`):
+  klassisches Konsolenfenster direkt, in Windows Terminal setzt es kurz den Konsolentitel als Marker
+  und sucht den Tab per UI Automation. Beendete Sessions findet `src/alive.js` per `Get-Process`
+  (PID + Startzeit). Getestet wird das echt auf Windows in CI (`test/hook-ps.test.js`).
 - `src/` ist die Electron-App: liest die Statusdateien und zeigt das Tier in einem kleinen transparenten,
   immer obenliegenden Fenster, das mit ihm über die Bildschirme wandert.
 - `src/animals.js` erzeugt alle Posen aus den Lauf-Animationen der Vorlage; `src/bubbles.js` die
   Sprechblasen und ihren Bogen; `src/meadow.js` die Wiese, die jeden Monat anders aussieht.
-- Klick auf eine Blase holt die Session nach vorne: Windows Terminal (richtiger Tab), Cursor, VS Code,
+- Klick auf eine Blase holt die Session nach vorne: Windows Terminal (richtiger Tab), Windows-Konsole
+  (PowerShell/cmd ohne WSL), Cursor, VS Code,
   Windsurf (Begleit-Erweiterung in `extension/`, wird automatisch installiert), JetBrains (Fenster),
   macOS (Terminal.app und iTerm über das TTY, sonst die App). Editor-Fenster werden über die
   Shell-PIDs ihrer Terminals gefunden, die die Erweiterung meldet, nicht über den Ordner der Session:

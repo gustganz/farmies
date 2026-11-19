@@ -31,29 +31,31 @@ function write(file, settings, backupSuffix) {
 }
 
 // "|| true": whatever goes wrong in the hook, it never blocks Claude (exit code 2 would block a
-// prompt or tool call)
-const commandFor = (hookCmd, event) => `${hookCmd} ${event} || true`;
+// prompt or tool call). Not for the native Windows hook: Claude may run its command in Windows
+// PowerShell, where "||" is a syntax error; that hook never exits with anything but 0 itself.
+const commandFor = (hookCmd, event, orTrue) => `${hookCmd} ${event}${orTrue ? ' || true' : ''}`;
 
 /**
  * Adds missing hooks and updates outdated Farmies commands. Returns the number added or changed;
- * writes only if needed.
+ * writes only if needed. options: orTrue (append "|| true"), timeout (seconds).
  */
-function addHooks(file, hookCmd) {
+function addHooks(file, hookCmd, { orTrue = true, timeout = 5 } = {}) {
   const settings = read(file);
   settings.hooks = settings.hooks || {};
   let changed = 0;
   for (const event of EVENTS) {
-    const command = commandFor(hookCmd, event);
+    const command = commandFor(hookCmd, event, orTrue);
     const groups = (settings.hooks[event] = settings.hooks[event] || []);
     const ours = groups.flatMap((g) => (g.hooks || []).filter((h) => String(h.command || '').includes(MARKER)));
     for (const h of ours) {
-      if (h.command !== command) {
+      if (h.command !== command || h.timeout !== timeout) {
         h.command = command;
+        h.timeout = timeout;
         changed++;
       }
     }
     if (ours.length) continue;
-    const group = { hooks: [{ type: 'command', command, timeout: 5 }] };
+    const group = { hooks: [{ type: 'command', command, timeout }] };
     if (MATCHERS[event]) group.matcher = MATCHERS[event];
     groups.push(group);
     changed++;

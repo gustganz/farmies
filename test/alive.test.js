@@ -5,7 +5,7 @@ const { execFileSync, spawnSync } = require('child_process');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { goneSessions, isGone, parsePs, parseRunning } = require('../src/alive');
+const { goneSessions, goneNative, isGone, isGoneWin, parsePs, parseWin, parseRunning } = require('../src/alive');
 
 const START = 'Wed Nov 18 10:04:21 2026';
 
@@ -71,4 +71,27 @@ test('alive: the hook records Claude as the first ancestor that is not a shell',
   const s = { id: 's1', cpid: Number(d.cpid), cstart: d.cstart, pids: [] };
   assert.deepStrictEqual(await goneSessions([s]), []);
   assert.deepStrictEqual((await goneSessions([{ ...s, cstart: d.cstart + '1' }])).map((x) => x.id), ['s1']);
+});
+
+test('alive: native Windows sessions (Get-Process output: pid and FILETIME start)', async () => {
+  const procs = parseWin('412 134077000000000000\r\n500 \r\nfarmies-ps-done\r\n');
+  assert.strictEqual(procs.get(412), '134077000000000000');
+  assert.strictEqual(procs.get(500), '', 'start unknown (elevated)');
+  assert.strictEqual(isGoneWin({ cpid: 412, cstart: '134077000000000000' }, procs), false);
+  assert.strictEqual(isGoneWin({ cpid: 412, cstart: '134077000000000001' }, procs), true, 'pid reused');
+  assert.strictEqual(isGoneWin({ cpid: 500, cstart: '134077000000000000' }, procs), false, 'cannot tell');
+  assert.strictEqual(isGoneWin({ cpid: 413, cstart: '1' }, procs), true);
+
+  const wsl = { id: 'w', distro: 'Ubuntu', cpid: 412, cstart: '8770' };
+  const native = { id: 'n', distro: '', cpid: 412, cstart: '1' };
+  const calls = [];
+  const runPs = async (cmd, args) => {
+    calls.push([cmd, args]);
+    return '412 2\nfarmies-ps-done\n';
+  };
+  assert.deepStrictEqual(await goneNative([wsl, native], runPs), [native]);
+  assert.strictEqual(calls.length, 1);
+  assert.match(calls[0][1].at(-1), /Get-Process -Id 412 /);
+  assert.deepStrictEqual(await goneNative([wsl], runPs), [], 'WSL sessions are not asked about');
+  assert.deepStrictEqual(await goneNative([native], async () => null), [], 'PowerShell failing: still running');
 });

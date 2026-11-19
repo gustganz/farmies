@@ -4,12 +4,12 @@ const path = require('path');
 const { Sessions, NEEDS_USER_STATES, clearedBySeeing } = require('./sessions');
 const Animals = require('./animals');
 const { trayIcon } = require('./tray-icon');
-const { focusSession, EDITORS } = require('./focus');
+const { focusSession, learnTab, EDITORS } = require('./focus');
 const { SeenByFocus } = require('./seen-by-focus');
 const { focusedTerminalPids } = require('./editor-focus');
 const autostart = require('./autostart');
 const { uninstall } = require('./uninstall');
-const { ensureHooks, recheckEditorExtension, hookHome } = require('./hooks');
+const { ensureHooks, recheckEditorExtension, sessionHome } = require('./hooks');
 const { WtTabs } = require('./wt-tabs');
 const problems = require('./problems');
 const { Updater } = require('./updater');
@@ -268,11 +268,13 @@ function yesNoMenu(label, value, set) {
 // (see src/seen-by-focus.js). Not questions and permission requests: they stay until answered.
 function markSeenByFocus() {
   const pending = sessions.list.filter(clearedBySeeing);
-  let editorPids = null;
+  // per home: WSL and Windows pids are different worlds
+  const editorPids = new Map();
   const focused = (s) => {
     if (EDITORS[s.term]) {
-      editorPids = editorPids || focusedTerminalPids(hookHome());
-      return s.pids.some((pid) => editorPids.has(pid));
+      const home = sessionHome(s);
+      if (!editorPids.has(home)) editorPids.set(home, focusedTerminalPids(home));
+      return s.pids.some((pid) => editorPids.get(home).has(pid));
     }
     return process.platform === 'win32' && wtTabs.isFocused(s.id);
   };
@@ -402,6 +404,10 @@ acquireLock().then((locked) => {
     sessions.on('change', (list) => {
       win?.webContents.send('sessions', list);
       updateTray();
+      // native Windows sessions in Windows Terminal: find their tab once they need the user
+      if (process.platform === 'win32') {
+        for (const s of list) if (NEEDS_USER_STATES.includes(s.state)) learnTab(s, wtTabs.tabFor(s.id));
+      }
     });
     sessions.start();
     wtTabs.start(); // Windows Terminal: which tab belongs to which session

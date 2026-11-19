@@ -152,3 +152,13 @@ test('sessions: the state files of sessions that ended without SessionEnd are re
     for (const f of [ghost, fresh]) fs.rmSync(f, { force: true });
   }
 });
+
+test('sessions: the project name from WSL/macOS and from native Windows paths', () => {
+  const sessions = new Sessions();
+  const project = (folder) => sessions.toSession({ session_id: 'a', event: 'Stop', folder }).project;
+  assert.strictEqual(project('/home/gust/farmies'), 'farmies');
+  assert.strictEqual(project('C:\\Users\\Gust\\Projekte\\farmies'), 'farmies');
+  assert.strictEqual(project('C:\\Users\\Gust\\farmies\\'), 'farmies');
+  assert.strictEqual(project(''), '?');
+  assert.strictEqual(sessions.toSession({ session_id: 'a', event: 'Stop', hwnd: '1234' }).hwnd, 1234);
+});

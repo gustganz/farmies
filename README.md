@@ -17,7 +17,7 @@
 ## Installieren
 
 > Voraussetzung: [Claude Code](https://code.claude.com/docs) ist installiert
-> (unter Windows in **WSL**).
+> (unter Windows in **WSL** oder direkt in PowerShell, cmd oder einem Editor).
 
 **🪟 Windows**
 

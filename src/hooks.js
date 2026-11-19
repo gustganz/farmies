@@ -1,5 +1,6 @@
 // Makes sure the Claude Code hooks are set up; runs on every app start and only writes what is
-// missing or outdated. Claude Code runs in WSL on Windows (default distro), else on this machine.
+// missing or outdated. On Windows Claude Code may run in WSL (default distro: hook.sh) and natively
+// (PowerShell, cmd, Windows Terminal, editors: hook.ps1), so both get the hooks; else this machine.
 const { execFile } = require('child_process');
 const fs = require('fs');
 const os = require('os');
@@ -9,8 +10,15 @@ const { addHooks } = require('./hook-settings');
 // Session files and install.json; on Windows this is the Windows home, written to from WSL.
 const BASE = path.join(os.homedir(), '.farmies');
 const HOOK_SOURCE = path.join(__dirname, '..', 'hook', 'farmies-hook.sh');
+const HOOK_PS_SOURCE = path.join(__dirname, '..', 'hook', 'farmies-hook.ps1');
 // via sh, so the script needs no executable bit (files written over \\wsl.localhost may lack it)
 const HOOK_CMD = 'sh "$HOME/.farmies/hook.sh"';
+// Native Windows: Claude runs hook commands in Git Bash, or in PowerShell without Git Bash. This
+// command means the same in both (forward slashes, double quotes); -ExecutionPolicy Bypass because
+// scripts are blocked by default. Timeout: Windows PowerShell takes a moment to start.
+const nativeHookCmd = (home) =>
+  `powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "${path.join(home, '.farmies', 'hook.ps1').replace(/\\/g, '/')}"`;
+const NATIVE_TIMEOUT = 15;
 
 /** Path of a file in the environment Claude Code runs in (WSL distro or this machine). */
 function hostPath(info, posixPath) {
@@ -32,9 +40,9 @@ function run(cmd, args, timeout = 30000) {
 }
 
 /** Everything a command printed, for a problem report. */
-function runOutput(cmd, args, timeout) {
+function runOutput(cmd, args, timeout, opts = {}) {
   return new Promise((resolve) => {
-    execFile(cmd, args, { windowsHide: true, timeout }, (err, stdout, stderr) => {
+    execFile(cmd, args, { windowsHide: true, timeout, ...opts }, (err, stdout, stderr) => {
       const text = [stdout, stderr].map((t) => String(t || '').replace(/\0/g, '').trim()).filter(Boolean);
       if (err) text.push(err.killed ? 'timeout' : `exit code ${err.code}`);
       resolve(text.join('\n'));
@@ -69,6 +77,17 @@ function hookHome() {
   }
 }
 
+/** Whether a session runs in Claude Code on Windows itself, not in WSL (s: from Sessions.list). */
+const isNative = (s, platform = process.platform) => platform === 'win32' && !s.distro;
+
+/**
+ * Home of the environment a session runs in (where its editor extension writes): the WSL home for
+ * WSL sessions, else this machine's.
+ */
+function sessionHome(s) {
+  return isNative(s) || process.platform !== 'win32' ? os.homedir() : hookHome();
+}
+
 // Companion extension for the VS Code family (see extension/): installed into every editor found.
 const EXT_ID = 'gustganz.farmies-terminal';
 const EXT_VERSION = require('../extension/package.json').version;
@@ -83,6 +102,24 @@ const MAC_EDITORS = [
   ['.vscode-insiders', '/Applications/Visual Studio Code - Insiders.app/Contents/Resources/app/bin/code-insiders'],
   ['.windsurf', '/Applications/Windsurf.app/Contents/Resources/app/bin/windsurf'],
 ];
+
+// Windows: local editors (extension dir in the Windows home, CLI scripts where the installers put them)
+const WIN_EDITORS = () => {
+  const local = process.env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local');
+  const programs = process.env.ProgramFiles || 'C:\\Program Files';
+  return [
+    ['.cursor', [path.join(local, 'Programs', 'cursor', 'resources', 'app', 'bin', 'cursor.cmd')]],
+    ['.vscode', [path.join(local, 'Programs', 'Microsoft VS Code', 'bin', 'code.cmd'), path.join(programs, 'Microsoft VS Code', 'bin', 'code.cmd')]],
+    [
+      '.vscode-insiders',
+      [
+        path.join(local, 'Programs', 'Microsoft VS Code Insiders', 'bin', 'code-insiders.cmd'),
+        path.join(programs, 'Microsoft VS Code Insiders', 'bin', 'code-insiders.cmd'),
+      ],
+    ],
+    ['.windsurf', [path.join(local, 'Programs', 'Windsurf', 'bin', 'windsurf.cmd')]],
+  ];
+};
 
 const hasExtension = (dir) => {
   try {
@@ -102,7 +139,8 @@ async function ensureEditorExtension(target, home) {
   const done = [];
   const failed = [];
   if (!fs.existsSync(VSIX)) return { done, failed: [{ editor: 'alle', output: `missing: ${VSIX}` }] };
-  if (process.platform === 'win32') {
+  if (process.platform === 'win32') await ensureWindowsEditorExtension(done, failed);
+  if (process.platform === 'win32' && target) {
     const missing = WSL_SERVERS.filter((server) => {
       const extDir = path.join(home, server, 'extensions');
       return fs.existsSync(extDir) && !hasExtension(extDir);
@@ -128,7 +166,7 @@ async function ensureEditorExtension(target, home) {
       if (hasExtension(path.join(home, server, 'extensions'))) done.push(server);
       else failed.push({ editor: server, output });
     }
-  } else {
+  } else if (process.platform !== 'win32') {
     for (const [dir, cli] of MAC_EDITORS) {
       const extDir = path.join(os.homedir(), dir, 'extensions');
       if (!fs.existsSync(cli) || hasExtension(extDir)) continue;
@@ -140,14 +178,38 @@ async function ensureEditorExtension(target, home) {
   return { done, failed };
 }
 
+/**
+ * Windows editors themselves (not their WSL servers): Claude started in their terminal runs natively.
+ * Only editors that are installed (extension dir and CLI found).
+ */
+async function ensureWindowsEditorExtension(done, failed) {
+  for (const [dir, clis] of WIN_EDITORS()) {
+    const extDir = path.join(os.homedir(), dir, 'extensions');
+    const cli = clis.find((c) => fs.existsSync(c));
+    if (!cli || !fs.existsSync(extDir) || hasExtension(extDir)) continue;
+    // a .cmd needs cmd.exe; the paths may contain spaces ("C:\Users\First Last\..."), so the whole
+    // line is quoted by hand (cmd /s strips the outer quotes)
+    const line = `"${cli}" --install-extension "${VSIX}" --force`;
+    const output = await runOutput('cmd.exe', ['/d', '/s', '/c', `"${line}"`], 120000, { windowsVerbatimArguments: true });
+    if (hasExtension(extDir)) done.push(dir);
+    else failed.push({ editor: dir, output });
+  }
+}
+
 let extensionRun = null;
 /** ensureEditorExtension for the environment set up at start (install.json); one run at a time. */
 function recheckEditorExtension() {
   if (extensionRun) return extensionRun;
   extensionRun = (async () => {
     try {
-      const target = JSON.parse(fs.readFileSync(path.join(BASE, 'install.json'), 'utf8'));
-      return await ensureEditorExtension(target, hostPath(target, target.home));
+      let target = null;
+      try {
+        target = JSON.parse(fs.readFileSync(path.join(BASE, 'install.json'), 'utf8'));
+      } catch (e) {
+        // Windows without WSL: only the editors on Windows itself
+        if (process.platform !== 'win32') throw e;
+      }
+      return await ensureEditorExtension(target, target && hostPath(target, target.home));
     } catch (e) {
       return { done: [], failed: [{ editor: 'alle', output: e.message }] };
     } finally {
@@ -157,8 +219,38 @@ function recheckEditorExtension() {
   return extensionRun;
 }
 
-/** Returns { ok, added } or { ok: false, reason }. The extension: recheckEditorExtension(). */
+/**
+ * Windows: the hooks for Claude Code running on Windows itself (hook.ps1 in the Windows home, hooks
+ * in its ~/.claude/settings.json). Returns the number of hooks added or changed.
+ */
+function ensureNativeHooks(home = os.homedir()) {
+  const dir = path.join(home, '.farmies');
+  fs.mkdirSync(path.join(dir, 'sessions'), { recursive: true });
+  writeIfChanged(path.join(dir, 'hook.ps1'), fs.readFileSync(HOOK_PS_SOURCE, 'utf8'));
+  return addHooks(path.join(home, '.claude', 'settings.json'), nativeHookCmd(home), { orTrue: false, timeout: NATIVE_TIMEOUT });
+}
+
+/**
+ * Returns { ok, added } or { ok: false, reason }. The extension: recheckEditorExtension().
+ * Windows: ok when either environment got its hooks (WSL is optional).
+ */
 async function ensureHooks() {
+  if (process.platform !== 'win32') return ensureWslOrLocalHooks();
+  let native;
+  try {
+    native = { ok: true, added: ensureNativeHooks() };
+  } catch (e) {
+    native = { ok: false, reason: `Windows: ${e.message}` };
+  }
+  const wsl = await ensureWslOrLocalHooks();
+  if (!wsl.ok && native.ok) return { ok: true, added: native.added, wsl: wsl.reason };
+  if (!native.ok && wsl.ok) return { ok: false, reason: native.reason, added: wsl.added };
+  if (!native.ok) return { ok: false, reason: `${native.reason}; WSL: ${wsl.reason}` };
+  return { ok: true, added: native.added + wsl.added };
+}
+
+/** The hooks in WSL (Windows) or on this machine (macOS). */
+async function ensureWslOrLocalHooks() {
   try {
     const target = await findTarget();
     if (!target) return { ok: false, reason: 'keine WSL-Distribution gefunden' };
@@ -182,4 +274,4 @@ async function ensureHooks() {
   }
 }
 
-module.exports = { ensureHooks, recheckEditorExtension, hookHome, hostPath, BASE };
+module.exports = { ensureHooks, ensureNativeHooks, nativeHookCmd, recheckEditorExtension, hookHome, sessionHome, isNative, hostPath, BASE };

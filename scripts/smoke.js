@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Start test of the packaged app (after electron-builder, also with --dir): starts it with
 // FARMIES_DEBUG, waits for its snapshot and checks that it runs, draws the animal, logs no errors
-// and set up the Claude Code hooks (macOS/Linux; on Windows they need WSL). Runs on GitHub Actions
+// and set up the Claude Code hooks (Windows: for Claude Code on Windows itself; WSL is not on the
+// runner). Runs on GitHub Actions
 // (macOS, Windows), where there is nobody to look:
 //   node scripts/smoke.js [out.png]
 // The snapshot (animal with the hover panel) is copied to out.png (default dist/smoke-<platform>.png).
@@ -70,7 +71,13 @@ async function main() {
   problems.push(...lines.filter((l) => l.startsWith('error')));
   const hooks = lines.find((l) => l.startsWith('hooks '));
   console.log(hooks || 'no hook status logged');
-  if (process.platform !== 'win32') {
+  if (process.platform === 'win32') {
+    if (!fs.existsSync(path.join(os.homedir(), '.farmies', 'hook.ps1'))) problems.push('~/.farmies/hook.ps1 missing');
+    const settings = path.join(os.homedir(), '.claude', 'settings.json');
+    if (!fs.existsSync(settings) || !fs.readFileSync(settings, 'utf8').includes('.farmies/hook.ps1')) {
+      problems.push('native hooks missing in ~/.claude/settings.json');
+    }
+  } else {
     const hook = path.join(os.homedir(), '.farmies', 'hook.sh');
     if (!fs.existsSync(hook)) problems.push('~/.farmies/hook.sh missing');
     else if (fs.readFileSync(hook, 'utf8').includes('\r')) problems.push('~/.farmies/hook.sh has CRLF line ends');

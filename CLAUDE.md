@@ -11,6 +11,12 @@ developer and release notes: docs/entwicklung.md.
 - `hook/farmies-hook.sh`: Claude Code hook (sh, runs in WSL/macOS). Writes one JSON state file per
   session into `~/.farmies/sessions/` (under WSL: the *Windows* home, path from `~/.farmies/config`).
   Also detects the terminal/editor of the session and marks Windows Terminal tab titles.
+- `hook/farmies-hook.ps1`: the same for Claude Code on Windows itself (started in PowerShell, cmd,
+  Windows Terminal, an editor; "native" sessions, state files without `distro`). Windows PowerShell 5.1,
+  ASCII only. Its command in the Windows `~/.claude/settings.json` must work in Git Bash *and* PowerShell
+  (Claude uses PowerShell when Git Bash is missing): no `|| true`, the script itself always exits 0.
+  Native sessions record `cpid`/`cstart` (FILETIME) and `hwnd`; a click attaches to Claude's console
+  (`src/focus-console.ps1`): classic console window directly, Windows Terminal tab via a brief title marker.
 - `src/main.js`: Electron main process: transparent always-on-top window, tray menu (same menu on
   right click on the animal), IPC. `src/renderer/`: behaviour (walk, sleep, drag & drop, swing),
   bubbles, hover panel.
@@ -24,7 +30,8 @@ developer and release notes: docs/entwicklung.md.
   (5 s, also if the focus was there all along). Only done/error/overdue: questions and permission requests
   stay until answered or cancelled in Claude (a click only focuses; the menu "Alle als gesehen" clears).
 - `src/hooks.js` + `src/hook-settings.js`: on every start, installs hook.sh and adds/updates the hooks in
-  `~/.claude/settings.json` (WSL default distro via `\\wsl.localhost`). Hook commands end in `|| true`:
+  `~/.claude/settings.json` (WSL default distro via `\\wsl.localhost`); on Windows also hook.ps1 and the
+  hooks in the Windows `~/.claude/settings.json` (WSL is optional). sh hook commands end in `|| true`:
   a hook must never block Claude (exit code 2 blocks prompts).
 - `src/focus.js`, `*.ps1`, `src/wt-tabs.js`, `extension/`: clicking a bubble focuses the session's
   window/tab (Windows Terminal tab via UI Automation, VS Code/Cursor/Windsurf terminal via the companion

@@ -1,7 +1,7 @@
 # Focuses a Windows Terminal tab: the one with UI Automation runtime id $TabId (see wt-tabs.js),
 # else the one whose title contains $Marker (or $Fallback).
-# Falls back to bringing the first Windows Terminal window to the front.
-param([string]$TabId = '', [string]$Marker = '', [string]$Fallback = '')
+# Falls back to bringing the first Windows Terminal window to the front, unless -Exact.
+param([string]$TabId = '', [string]$Marker = '', [string]$Fallback = '', [switch]$Exact)
 
 Add-Type -AssemblyName UIAutomationClient, UIAutomationTypes
 Add-Type @"
@@ -53,7 +53,7 @@ foreach ($needle in @($Marker, $Fallback)) {
   }
 }
 
-if ($windows.Count -gt 0) {
+if (-not $Exact -and $windows.Count -gt 0) {
   Show-BuddyWindow $windows[0]
   exit 0
 }

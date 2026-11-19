@@ -39,6 +39,10 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
+      # the native Windows hook (PowerShell) and the console focus script, run for real
+      - name: Windows hook tests
+        if: runner.os == 'Windows'
+        run: node --test test/hook-ps.test.js
       - run: npm run ext && npm run icon
       - name: Build (unpacked)
         run: npx electron-builder ${{ matrix.target }} --dir --publish never
