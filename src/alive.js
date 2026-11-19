@@ -6,20 +6,32 @@ const { execFile } = require('child_process');
 // Commands of a Claude Code process (native binary or the npm version)
 const CLAUDE_COMM = /^(claude|node)$/i;
 
-// ps with a fixed locale and time zone, like the hook, so start times compare as text. The mark
-// at the end tells an answer ("none of them runs", ps exit code 1) from a failure to ask.
+// ps with a fixed locale and time zone, like the hook, so start times compare as text. On Linux
+// also the start time in clock ticks since boot from /proc ("T pid ticks" lines): unlike lstart it
+// stays the same when the wall clock is set (WSL after sleep). The mark at the end tells an answer
+// ("none of them runs", ps exit code 1) from a failure to ask.
 const MARK = 'farmies-ps-done';
-const psScript = (pids) => `ps -o pid=,lstart=,comm= -p ${pids.join(',')}; echo ${MARK}`;
+// No quotes in the script: it goes through wsl.exe's command line.
+const psScript = (pids) =>
+  `ps -o pid=,lstart=,comm= -p ${pids.join(',')}; ` +
+  `for p in ${pids.join(' ')}; do test -r /proc/$p/stat && read -r l < /proc/$p/stat && set -- \${l##*) } && echo T $p \${20}; done; ` +
+  `echo ${MARK}`;
 
-/** ps output (pid, lstart in five words, command) → Map pid → { start, comm } */
+/** ps output (pid, lstart in five words, command; "T pid ticks" lines) → Map pid → { start, comm, ticks? } */
 function parsePs(out) {
   const procs = new Map();
+  const ticks = new Map();
   for (const line of String(out || '').split('\n')) {
     const words = line.trim().split(/\s+/);
+    if (words[0] === 'T' && /^\d+$/.test(words[1]) && /^\d+$/.test(words[2] || '')) {
+      ticks.set(Number(words[1]), words[2]);
+      continue;
+    }
     if (words.length < 7 || !/^\d+$/.test(words[0])) continue;
     const comm = words.slice(6).join(' ');
     procs.set(Number(words[0]), { start: words.slice(1, 6).join(' '), comm: comm.split('/').pop() });
   }
+  for (const [pid, t] of ticks) if (procs.has(pid)) procs.get(pid).ticks = t;
   return procs;
 }
 
@@ -43,14 +55,20 @@ function pidsOf(s) {
 
 /**
  * Whether the session's Claude process is gone (procs: what ps found). Newer hooks record Claude's
- * pid and start time; older state files only the hook's ancestors, the first two of which are the
+ * pid and start time (Linux: clock ticks since boot, macOS: ps lstart); older state files only the hook's ancestors, the first two of which are the
  * shell running the hook command and Claude.
  */
 function isGone(s, procs) {
   if (s.cpid) {
     const p = procs.get(s.cpid);
     if (!p) return true;
-    return Boolean(s.cstart) && p.start !== s.cstart.replace(/\s+/g, ' ').trim();
+    const start = String(s.cstart || '').replace(/\s+/g, ' ').trim();
+    if (!start) return false;
+    // Linux hooks record ticks since boot: exact, the pid belongs to another process if they differ
+    if (/^\d+$/.test(start)) return p.ticks !== undefined && p.ticks !== start;
+    // lstart (macOS, or a state file from v0.1.23): on Linux it shifts with the wall clock, so it
+    // only counts where ps has no ticks to offer
+    return p.ticks === undefined && p.start !== start;
   }
   const candidates = pidsOf(s);
   if (!candidates.length) return false; // nothing to go by

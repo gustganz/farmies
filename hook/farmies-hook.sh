@@ -74,7 +74,7 @@ bg=""
 #   app:  macOS bundle id of the host application (macOS passes it to every process)
 #   tty:  terminal device of the Claude process · pids: its ancestors (editor terminals are
 #         matched by their shell pid, see extension/extension.js) · cpid, cstart: Claude's own pid
-#         and start time (ps lstart), to see whether the session still runs
+#         and start time (Linux: ticks since boot, macOS: ps lstart), to see whether the session still runs
 detect_context() {
   app="${__CFBundleIdentifier:-}"
   case "$PATH" in
@@ -117,7 +117,14 @@ detect_context() {
         sh | dash | bash | zsh | ash | -sh | -bash | -zsh | */sh | */bash | */zsh) ;;
         *)
           cpid=$pid
-          cstart=$(TZ=UTC0 LC_ALL=C ps -o lstart= -p "$pid" 2>/dev/null | sed -E 's/^ +//; s/ +/ /g')
+          # Linux/WSL: start time in clock ticks since boot (field 22 of /proc/<pid>/stat, counted
+          # after the command name, which may hold spaces). ps lstart is derived from the wall clock
+          # and shifts when the clock is set (WSL after sleep): living sessions looked ended.
+          if [ -r "/proc/$pid/stat" ]; then
+            cstart=$(sed -E 's/^.*\) //' "/proc/$pid/stat" 2>/dev/null | cut -d' ' -f20)
+          else
+            cstart=$(TZ=UTC0 LC_ALL=C ps -o lstart= -p "$pid" 2>/dev/null | sed -E 's/^ +//; s/ +/ /g')
+          fi
           ;;
       esac
     fi

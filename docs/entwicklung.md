@@ -33,6 +33,9 @@
   (`cpid`/`cstart`); die App fragt alle 30 s per `ps` (unter Windows über `wsl.exe`, eine nicht
   laufende Distro wird dafür nicht gestartet) nach und löscht die Dateien verschwundener Sessions
   (`src/alive.js`). Ältere Statusdateien ohne `cpid`: die ersten beiden Vorfahren-PIDs.
+  Startzeit unter Linux/WSL: Clock-Ticks seit dem Boot aus `/proc/<pid>/stat`, nicht `ps lstart`.
+  `lstart` wird aus der Uhrzeit zurückgerechnet und verschiebt sich, wenn WSL nach dem Standby die
+  Uhr stellt; in v0.1.23 galten dadurch laufende Sessions als beendet. macOS: `lstart`.
 - Updates: die App schaut kurz nach dem Start und dann stündlich nach einem neuen GitHub-Release
   (`src/updater.js`). Autostart: Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (`com.gustganz.farmies`), macOS `~/Library/LaunchAgents/com.gustganz.farmies.plist`.
