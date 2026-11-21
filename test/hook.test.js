@@ -162,6 +162,19 @@ test('hook: a turn that ends while background work runs is not done (background_
   });
   assert.strictEqual(state().event, 'Background');
 
+  // live updates of an artifact (re-armed on every resume) are a subscription, not work: done
+  const live = { id: 'w1', type: 'monitor', status: 'running', description: 'live updates for artifact https://claude.ai/artifact/x (re-armed on session resume)' };
+  hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [live], session_crons: [] });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().bg, '');
+  hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [shell('npm run build'), live] });
+  assert.strictEqual(state().event, 'Background');
+  assert.strictEqual(state().bg, '1');
+  assert.strictEqual(state().detail, 'npm run build');
+  hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [live, shell('npm run dev')] });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().step, 'npm run dev');
+
   // the finished work wakes the session with a notification: working again, the task stays
   hook('UserPromptSubmit', { prompt: '<task-notification>\n<task-id>b1</task-id>\n</task-notification>' });
   assert.strictEqual(state().event, 'UserPromptSubmit');

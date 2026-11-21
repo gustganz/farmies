@@ -97,6 +97,13 @@ test('ps hook: background work: agents are waited for, a dev server is handed ov
   assert.strictEqual(state().event, 'Background');
   hook('Stop', { background_tasks: [{ id: 'c', status: 'running', command: 'npm test' }], last_assistant_message: 'Shall I go on?' });
   assert.strictEqual(state().event, 'Stop');
+  // live updates of an artifact: a subscription, not work
+  const live = { id: 'w', type: 'monitor', status: 'running', description: 'live updates for artifact https://claude.ai/artifact/x (re-armed on session resume)' };
+  hook('Stop', { background_tasks: [live], last_assistant_message: 'Pushed.' });
+  assert.strictEqual(state().event, 'Stop');
+  hook('Stop', { background_tasks: [live, { id: 'a', status: 'running', description: 'Explore code' }] });
+  assert.strictEqual(state().event, 'Background');
+  assert.strictEqual(state().bg, '1');
 });
 
 test('ps hook: SessionEnd removes the files; broken input never fails', { skip }, () => {

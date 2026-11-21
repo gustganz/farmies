@@ -35,6 +35,8 @@ function ToolStep($data, $cwd) {
 
 # commands that keep running until stopped: servers, watchers, followed logs (as in the sh hook)
 $ServerRe = '(^|[^a-zA-Z])serve|[:\s"](dev|start|preview|watch|up)([\s":]|$)|--watch|watch\s|nodemon|http\.server|runserver|tail\s+-[a-zA-Z]*[fF]|docker[\s-]+compose\s+up'
+# background tasks that are subscriptions, not work: they never end by themselves
+$SubscriptionRe = '^live updates for|re-armed on session resume'
 
 # Claude ended its turn but background work is still running (see farmies-hook.sh): handed over to
 # the user when it is only shells and Claude asked something, or only shells that never end by
@@ -165,7 +167,9 @@ try {
   # a failed or denied tool call also means the session went on
   if ($Name -eq 'PostToolUseFailure') { $Name = 'PostToolUse' }
   if ($Name -eq 'Stop') {
-    $tasks = @($data.background_tasks | Where-Object { $_ })
+    # subscriptions that only wait for events from outside (live updates of an artifact, re-armed on
+    # every resume) are not work Claude waits for
+    $tasks = @($data.background_tasks | Where-Object { $_ -and ([string]$_.description -notmatch $SubscriptionRe) })
     if ($tasks.Count) {
       $state.bg = [string]$tasks.Count
       $first = $tasks[0]

@@ -184,10 +184,18 @@ handed_over() {
 }
 # commands that keep running until stopped: servers, watchers, followed logs
 SERVER_RE='(^|[^a-zA-Z])serve|[:[:space:]"](dev|start|preview|watch|up)([[:space:]":]|$)|--watch|watch[[:space:]]|nodemon|http\.server|runserver|tail[[:space:]]+-[a-zA-Z]*[fF]|docker[[:space:]-]+compose[[:space:]]+up'
+# background tasks that are subscriptions, not work: they never end by themselves
+SUBSCRIPTION_RE='re-armed on session resume|"description"[[:space:]]*:[[:space:]]*"live updates for'
 if [ "$event" = Stop ]; then
   tasks=$(printf '%s' "$input" | sed -n 's/.*"background_tasks"[[:space:]]*:[[:space:]]*\[[[:space:]]*\({.*\)/\1/p')
   if [ -n "$tasks" ]; then
     tasks=${tasks%%\"session_crons\"*}
+    # one task per line; subscriptions that only wait for events from outside (live updates of an
+    # artifact, re-armed on every resume) are not work Claude waits for
+    tasks=$(printf '%s' "$tasks" | sed 's/}[[:space:]]*,[[:space:]]*{/}\
+{/g' | grep -viE "$SUBSCRIPTION_RE")
+  fi
+  if [ -n "$tasks" ]; then
     bg=$(printf '%s' "$tasks" | grep -o '"status"[[:space:]]*:' | wc -l | tr -d ' ')
     if handed_over "$tasks"; then
       # only shells that keep running (a server, a watcher) or Claude asked the user: done, the
