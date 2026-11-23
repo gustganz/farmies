@@ -22,7 +22,9 @@ developer and release notes: docs/entwicklung.md.
   bubbles, hover panel.
 - `src/sessions.js`: reads the state files → states error/attention/question/done/working/idle.
   A question counts as handled once the session transcript changed after it (cancelling fires no hook),
-  done/error once the transcript has a new message after it (the user went on, e.g. a slash command).
+  done/error once the transcript has a new message after it (the user went on, e.g. a slash command),
+  working ends on an Esc marker in the transcript. Background subagents count only while their own
+  transcripts change (Claude Code may list finished ones as running). State table: docs/entwicklung.md.
   `src/alive.js`: sessions that ended without SessionEnd (tab closed, WSL shut down) are found by
   Claude's pid + start time (`cpid`/`cstart` from the hook, `ps` via `wsl.exe`) and their files removed.
   Linux start time = ticks since boot from /proc, never `ps lstart` (moves when WSL sets its clock).

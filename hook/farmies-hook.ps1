@@ -153,7 +153,7 @@ try {
   $state = [ordered]@{
     session_id = $sid; event = $Name; cwd = $cwd; folder = $cwd; message = ''; type = ''; term = ''; app = ''; tty = ''
     pids = ''; cpid = ''; cstart = ''; distro = ''; transcript = [string]$data.transcript_path; branch = ''
-    task = ''; title = ''; detail = ''; bg = ''; step = ''; hwnd = ''; ts = 0
+    task = ''; title = ''; detail = ''; bg = ''; agents = ''; reply = ''; step = ''; hwnd = ''; ts = 0
   }
   if ($prev) {
     $state.task = [string]$prev.task
@@ -183,6 +183,9 @@ try {
         if ($shells.Count) { $state.step = Clip $shells[0].command }
       } else {
         $Name = 'Background'
+        # the ids of the subagents among them: the app sees from their transcripts whether they still work
+        $state.agents = (@($tasks | Where-Object { [string]$_.type -eq 'subagent' } | ForEach-Object { [string]$_.id }) -join ' ')
+        $state.reply = Clip $data.last_assistant_message
         $d = [string]$first.command
         if (-not $d) { $d = [string]$first.description }
         $state.detail = Clip $d
@@ -190,6 +193,10 @@ try {
     }
   }
   $state.event = $Name
+  # A subagent's tool call (background agents work on after the turn ended) does not end a wait for
+  # the user: the main session's question, result or request stays.
+  if ($Name -eq 'PostToolUse' -and $data.agent_id -and $prev -and
+    ('Stop', 'Question', 'Notification', 'PermissionRequest', 'StopFailure' -contains [string]$prev.event)) { exit 0 }
 
   switch ($Name) {
     { 'Notification', 'PermissionRequest', 'Stop', 'Question', 'StopFailure' -contains $_ } {

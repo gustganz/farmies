@@ -49,6 +49,30 @@
   (`src/updater.js`). Autostart: Windows `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`
   (`com.gustganz.farmies`), macOS `~/Library/LaunchAgents/com.gustganz.farmies.plist`.
 
+## Zustände einer Session
+
+Der Hook schreibt das letzte Ereignis, `src/sessions.js` macht daraus den Zustand:
+
+| Ereignis (Hook) | Zustand | Endet durch |
+| --- | --- | --- |
+| `UserPromptSubmit`, `PostToolUse` | arbeitet | nächstes Ereignis; Esc (kein Hook) erkennt die App am Eintrag `[Request interrupted by user…]` im Transcript; sonst nach 12 Min. ruhig (ein Shell-Befehl darf 10 Min. laufen) |
+| `PreToolUse` (nur AskUserQuestion) | Frage | Transcript ändert sich (beantwortet oder abgebrochen) |
+| `PermissionRequest`, `Notification` (Freigabe, Agent braucht Eingabe) | Freigabe | Transcript ändert sich |
+| `Stop` | fertig | neue Nachricht im Transcript, gesehen (5 s im Tab) oder Klick |
+| `StopFailure` | Fehler | wie fertig |
+| `Stop` mit `background_tasks` → `Background` | arbeitet, nach 5 Min. „Schon fertig?“ | Claude wird von der fertigen Arbeit geweckt (`UserPromptSubmit` mit Task-Notification) |
+| `SessionStart` | ruhig | |
+
+Hintergrund-Aufgaben beim `Stop` (`background_tasks`, laut Claude Code nur laufende):
+- Endet Claudes letzte Nachricht mit einer Frage, ist die Session fertig, egal was noch läuft.
+- Nur Shells, die von selbst nie enden (Server, Watcher, `tail -f`): fertig, im Panel „Shell läuft“.
+- Live-Updates eines Artefakts und Claude Codes eigene Aufgaben (Auto-Mode-Scan, Memory) zählen nicht.
+- Subagents: Claude Code führt fertige Agents manchmal dauerhaft als laufend. Der Hook merkt sich ihre
+  IDs (`agents`) und Claudes Antwort (`reply`); die App schaut auf ihre Transcripts
+  (`<session>/subagents/…/agent-<id>.jsonl`). Seit 5 Min. unverändert: zählt nicht, bleibt nichts
+  übrig, ist die Session fertig. Arbeitet einer, gibt es kein „Schon fertig?“.
+- Tool-Aufrufe eines Subagents (Hook-Eingabe mit `agent_id`) beenden ein Warten auf den User nicht.
+
 ## Starten und testen
 
 - **Windows (aus WSL)**: `sh scripts/run-windows.sh` kopiert die App nach `%LOCALAPPDATA%\farmies\app`,

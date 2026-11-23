@@ -68,6 +68,8 @@ pids=""
 cpid=""
 cstart=""
 bg=""
+agents=""
+reply=""
 
 # Where the session runs, so the buddy can bring exactly that window/tab to the front:
 #   term: cursor | vscode | vscode-insiders | windsurf | jetbrains | wt | apple-terminal | iterm | unknown
@@ -158,10 +160,10 @@ write_state() {
   # transcript: the app treats a question/permission as handled when the transcript changes later
   # (cancelling a question in Claude fires no hook)
   # step stays the last field before ts: the PostToolUse heartbeat replaces just these two
-  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","cpid":"%s","cstart":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","bg":"%s","step":"%s","ts":%s}\n' \
+  printf '{"session_id":"%s","event":"%s","cwd":"%s","folder":"%s","message":"%s","type":"%s","term":"%s","app":"%s","tty":"%s","pids":"%s","cpid":"%s","cstart":"%s","distro":"%s","transcript":"%s","branch":"%s","task":"%s","title":"%s","detail":"%s","bg":"%s","agents":"%s","reply":"%s","step":"%s","ts":%s}\n' \
     "$sid" "$event" "$cwd" "$(esc "$folder")" "$message" "$ntype" "$term" "$(esc "$app")" "$(esc "$tty")" \
     "$pids" "$cpid" "$(esc "$cstart")" "$(esc "${WSL_DISTRO_NAME:-}")" "$(field transcript_path)" "$(esc "$branch")" "$task" "$title" "$detail" \
-    "$bg" "$step" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
+    "$bg" "$agents" "$reply" "$step" "$(date +%s)" >"$tmp" && mv -f "$tmp" "$BUDDY_DIR/$sid.json"
 }
 
 # PreToolUse is only registered for AskUserQuestion: Claude asks the user a question.
@@ -207,11 +209,23 @@ if [ "$event" = Stop ]; then
       [ -n "$bg" ] && step=$(clip "$(field command "$tasks")")
     else
       event=Background
+      # the ids of the subagents among them: the app sees from their transcripts whether they still
+      # work (Claude Code may keep a finished one listed), and when none does, shows the turn as done
+      # with Claude's reply
+      agents=$(printf '%s\n' "$tasks" | grep -E '"type"[[:space:]]*:[[:space:]]*"subagent"' \
+        | sed -nE 's/.*"id"[[:space:]]*:[[:space:]]*"([A-Za-z0-9_-]+)".*/\1/p' | tr '\n' ' ' | sed 's/ $//')
+      reply=$(clip "$(field last_assistant_message)")
       detail=$(field command "$tasks")
       [ -n "$detail" ] || detail=$(field description "$tasks")
       detail=$(clip "$detail")
     fi
   fi
+fi
+
+# A subagent's tool call (background agents work on after the turn ended) does not end a wait for the
+# user: the main session's question, result or request stays.
+if [ "$event" = PostToolUse ] && [ -n "$(field agent_id)" ]; then
+  case "$(field event "$prev")" in Stop | Question | Notification | PermissionRequest | StopFailure) exit 0 ;; esac
 fi
 
 case "$event" in

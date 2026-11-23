@@ -111,6 +111,80 @@ test('sessions: waiting for background work counts as working, after 5 minutes i
   assert.strictEqual(late().background, 1);
 });
 
+test('sessions: background agents count only while their transcripts change', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-agents-'));
+  const transcript = path.join(dir, 's1.jsonl');
+  fs.writeFileSync(transcript, '');
+  const sub = path.join(dir, 's1', 'subagents');
+  fs.mkdirSync(path.join(sub, 'nested'), { recursive: true });
+  const agent = (id, minutesAgo, where = sub) => {
+    const f = path.join(where, `agent-${id}.jsonl`);
+    fs.writeFileSync(f, '{}\n');
+    const t = new Date(Date.now() - minutesAgo * 60 * 1000);
+    fs.utimesSync(f, t, t);
+  };
+  const sessions = new Sessions();
+  const now = Date.now();
+  const d = { session_id: 's1', event: 'Background', bg: '2', agents: 'a1 a2', detail: 'Design 3 variants', reply: 'Pushed. **More** text.', transcript, ts: Math.floor(now / 1000) };
+
+  // two agents Claude Code still lists, finished long ago: the turn is done, with Claude's reply
+  agent('a1', 60);
+  agent('a2', 50, path.join(sub, 'nested'));
+  let s = sessions.toSession(d, now);
+  assert.strictEqual(s.state, 'done');
+  assert.strictEqual(s.background, 0);
+  assert.strictEqual(s.detail, 'Pushed.');
+  // a recently finished agent that is not listed does not keep it working
+  agent('old', 0);
+  assert.strictEqual(sessions.toSession(d, now).state, 'done');
+
+  // one of them works: working, and no "schon fertig?" while it does, even after 5 minutes
+  agent('a2', 1, path.join(sub, 'nested'));
+  s = sessions.toSession(d, now);
+  assert.strictEqual(s.state, 'working');
+  assert.strictEqual(s.background, 2);
+  assert.strictEqual(sessions.toSession({ ...d, ts: d.ts - 600 }, now - 10 * 60 * 1000).state, 'working');
+
+  // a quiet agent next to a shell: only the shell counts
+  agent('a2', 60, path.join(sub, 'nested'));
+  s = sessions.toSession({ ...d, bg: '2', agents: 'a1' }, now);
+  assert.strictEqual(s.state, 'working');
+  assert.strictEqual(s.background, 1);
+
+  // transcripts not found: as before (working, after 5 minutes it asks)
+  assert.strictEqual(sessions.toSession({ ...d, agents: 'x1 x2' }, now).state, 'working');
+  assert.strictEqual(sessions.toSession({ ...d, agents: 'x1 x2' }, now - 6 * 60 * 1000).state, 'overdue');
+});
+
+test('sessions: a turn stopped with Esc (no hook) is no longer working', () => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const { isInterrupt } = require('../src/sessions');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'farmies-esc-'));
+  const transcript = path.join(dir, 't.jsonl');
+  const ts = Math.floor(Date.now() / 1000) - 60;
+  const at = (s) => new Date((ts + s) * 1000).toISOString();
+  const write = (...entries) => {
+    fs.writeFileSync(transcript, entries.map((e) => JSON.stringify(e)).join('\n') + '\n');
+    fs.utimesSync(transcript, new Date(), new Date());
+  };
+  const state = () => new Sessions().toSession({ session_id: 'a', event: 'PostToolUse', ts, transcript }, ts * 1000).state;
+  write({ type: 'assistant', timestamp: at(10), message: { content: [{ type: 'text', text: 'Running the tests.' }] } });
+  assert.strictEqual(state(), 'working');
+  write({ type: 'user', timestamp: at(20), message: { content: [{ type: 'text', text: '[Request interrupted by user for tool use]' }] } });
+  assert.strictEqual(state(), 'idle');
+  write({ type: 'user', timestamp: at(20), message: { content: '[Request interrupted by user]' } });
+  assert.strictEqual(state(), 'idle');
+  assert.ok(!isInterrupt({ type: 'user', message: { content: 'go on' } }));
+  // a long tool call without a hook: still working after 5 minutes
+  const s = new Sessions().toSession({ session_id: 'b', event: 'PostToolUse', ts: Math.floor(Date.now() / 1000) }, Date.now() - 8 * 60 * 1000);
+  assert.strictEqual(s.state, 'working');
+});
+
 test('sessions: done while a server keeps running is done, the shell is noted', () => {
   const sessions = new Sessions();
   const now = Date.now();

@@ -23,14 +23,21 @@ const POLL_MS = 1000;
 // old a state file must be before its session may count as gone (a hook may just be writing it).
 const ALIVE_MS = 30 * 1000;
 const ALIVE_GRACE = 60 * 1000;
-// The hook refreshes a working session at least once a minute while tools run.
-const WORKING_TIMEOUT = 5 * 60 * 1000;
+// The hook refreshes a working session at least once a minute while tools run, but not during one
+// long tool call (a shell command may run up to 10 minutes) or long thinking. A turn that ends
+// without a hook (the user pressed Esc) is seen in the transcript (interrupted below), so this only
+// catches what slips through.
+const WORKING_TIMEOUT = 12 * 60 * 1000;
 // Claude ended its turn but waits for background work (a shell, agent or monitor): working until
 // that work ends and wakes the session, which fires hooks again. When that takes longer than this,
 // the animal asks the user to have a look ("overdue": maybe it hangs, maybe it is done). Seen or
 // clicked, it asks no more: the session rests (idle) until the work ends and wakes it. Shells that
 // keep running by themselves (a dev server) the hook records as a normal Stop (done) with bg.
 const BACKGROUND_OVERDUE = 5 * 60 * 1000;
+// Background subagents write their own transcripts while they work. Claude Code may keep a finished
+// agent listed as running for good; one whose transcript has not changed for this long (before the
+// turn ended or since) does not count: when no agent works, the turn is done.
+const AGENT_QUIET = 5 * 60 * 1000;
 // Hook events that mean the session waits for the user, and the resulting state.
 const NEEDS_USER = {
   StopFailure: 'error',
@@ -80,15 +87,15 @@ function installHome() {
   return home;
 }
 
-// Time of the newest message at the end of a transcript (0: none or unreadable): from the user or
-// Claude, or a slash command like /model (newer Claude Code logs those as system entries). Other
-// system entries (hook summaries, turn times), summaries and titles are not someone going on.
-function lastMessageTime(file) {
+// The newest message at the end of a transcript (null: none or unreadable): from the user or Claude,
+// or a slash command like /model (newer Claude Code logs those as system entries). Other system
+// entries (hook summaries, turn times), summaries and titles are not someone going on.
+function lastMessage(file, tail = TRANSCRIPT_TAIL) {
   let fd;
   try {
     fd = fs.openSync(file, 'r');
     const size = fs.fstatSync(fd).size;
-    const length = Math.min(size, TRANSCRIPT_TAIL);
+    const length = Math.min(size, tail);
     const buf = Buffer.alloc(length);
     fs.readSync(fd, buf, 0, length, size - length);
     const lines = buf.toString('utf8').split('\n');
@@ -103,16 +110,27 @@ function lastMessageTime(file) {
       }
       const message =
         entry.type === 'user' || entry.type === 'assistant' || (entry.type === 'system' && entry.subtype === 'local_command');
-      if (!message) continue;
-      const t = Date.parse(entry.timestamp);
-      if (t) return t;
+      if (message) return entry;
     }
   } catch {
     // gone or not reachable
   } finally {
     if (fd !== undefined) fs.closeSync(fd);
   }
-  return 0;
+  return null;
+}
+// Time of the newest message at the end of a transcript (0: none or unreadable)
+function lastMessageTime(file) {
+  const entry = lastMessage(file);
+  return (entry && Date.parse(entry.timestamp)) || 0;
+}
+// Whether a transcript entry is the marker Claude Code writes when the user stops a turn (Esc):
+// no hook fires then.
+function isInterrupt(entry) {
+  if (!entry || entry.type !== 'user') return false;
+  const c = entry.message && entry.message.content;
+  const text = typeof c === 'string' ? c : Array.isArray(c) && c.length ? String(c[c.length - 1].text || '') : '';
+  return text.startsWith('[Request interrupted by user');
 }
 
 class Sessions extends EventEmitter {
@@ -224,17 +242,35 @@ class Sessions extends EventEmitter {
     // Needs the user: attention (permission) · question · error (stopped by an error) · done.
     // Otherwise: working (busy) or idle.
     let state = NEEDS_USER[d.event] || 'idle';
-    if (state === 'idle' && ['UserPromptSubmit', 'PostToolUse'].includes(d.event) && Date.now() - ts < WORKING_TIMEOUT) {
-      state = 'working';
-    }
-    const dismissed = this.dismissed.get(d.session_id) || 0;
-    if (d.event === 'Background') {
-      if (dismissed >= ts) state = 'idle';
-      else state = Date.now() - ts < BACKGROUND_OVERDUE ? 'working' : 'overdue';
-    }
-    else if (NEEDS_USER_STATES.includes(state) && dismissed >= ts) state = 'idle';
     // the transcript lives in WSL too: compared with the hook's own clock
     const hookTs = (Number(d.ts) || 0) * 1000;
+    if (state === 'idle' && ['UserPromptSubmit', 'PostToolUse'].includes(d.event) && Date.now() - ts < WORKING_TIMEOUT) {
+      state = this.interruptedSince(d, hookTs) ? 'idle' : 'working';
+    }
+    const dismissed = this.dismissed.get(d.session_id) || 0;
+    // background work Claude waits for: tasks, and how many of them are subagents
+    let background = d.event === 'Background' ? Number(d.bg) || 1 : 0;
+    let detail = d.event === 'Stop' ? firstSentence(d.detail) : oneLine(d.detail);
+    // the hook's clock now (the state file's time and Date.now() are both this machine's clock)
+    const hookNow = hookTs + Math.max(0, Date.now() - ts);
+    const ids = d.event === 'Background' ? String(d.agents || '').split(' ').filter(Boolean) : [];
+    const agents = Math.min(ids.length, background);
+    const working = agents ? this.agentsWorking(d, ids, hookNow) : null;
+    let agentsOnly = false;
+    if (working === false) {
+      // only listed, no longer working: they do not count
+      background -= agents;
+      if (!background) {
+        // nothing left that Claude waits for: the turn is done, with Claude's reply
+        state = 'done';
+        detail = firstSentence(d.reply);
+      }
+    } else if (working && agents === background) agentsOnly = true;
+    if (background) {
+      if (dismissed >= ts) state = 'idle';
+      // working agents show it in their transcripts: no need to ask whether they are done
+      else state = agentsOnly || Date.now() - ts < BACKGROUND_OVERDUE ? 'working' : 'overdue';
+    } else if (NEEDS_USER_STATES.includes(state) && dismissed >= ts) state = 'idle';
     if ((state === 'question' || state === 'attention') && this.transcriptChangedSince(d, hookTs)) state = 'idle';
     if ((state === 'done' || state === 'error') && this.messageSince(d, hookTs)) state = 'idle';
 
@@ -267,9 +303,9 @@ class Sessions extends EventEmitter {
       title: oneLine(d.title),
       branch: oneLine(d.branch, 40),
       step: oneLine(d.step),
-      detail: d.event === 'Stop' ? firstSentence(d.detail) : oneLine(d.detail),
+      detail,
       // background work Claude waits for (number of tasks), 0: none
-      background: d.event === 'Background' ? Number(d.bg) || 1 : 0,
+      background,
       // shells that keep running after a finished turn (a dev server; step: the command), 0: none
       running: d.event === 'Stop' ? Number(d.bg) || 0 : 0,
     };
@@ -287,6 +323,61 @@ class Sessions extends EventEmitter {
     return process.platform === 'win32' && d.distro
       ? `\\\\wsl.localhost\\${d.distro}${transcript.replace(/\//g, '\\')}`
       : transcript;
+  }
+
+  /**
+   * Whether background subagents (ids) of a session still work: one of their transcripts
+   * (<session>/subagents/[...]/agent-<id>.jsonl) changed within AGENT_QUIET before now (the hook's
+   * clock). null: unknown (none of them found).
+   */
+  agentsWorking(d, ids, now) {
+    const file = this.transcriptFile(d);
+    if (!file) return null;
+    const dir = path.join(file.replace(/\.jsonl$/, ''), 'subagents');
+    const wanted = new Set(ids.map((id) => `agent-${id}.jsonl`));
+    let newest = 0;
+    const scan = (where, depth) => {
+      let names;
+      try {
+        names = fs.readdirSync(where, { withFileTypes: true });
+      } catch {
+        return;
+      }
+      for (const n of names) {
+        const full = path.join(where, n.name);
+        if (n.isDirectory()) {
+          if (depth < 2) scan(full, depth + 1);
+        } else if (wanted.has(n.name)) {
+          try {
+            newest = Math.max(newest, fs.statSync(full).mtimeMs);
+          } catch {
+            // gone
+          }
+        }
+      }
+    };
+    scan(dir, 0);
+    return newest ? newest > now - AGENT_QUIET : null;
+  }
+
+  // Whether the user stopped the turn (Esc) after ts: no hook fires then, the transcript says so.
+  interruptedSince(d, ts) {
+    if (!this.transcriptChangedSince(d, ts)) return false;
+    const file = this.transcriptFile(d);
+    let mtime;
+    try {
+      mtime = fs.statSync(file).mtimeMs;
+    } catch {
+      return false;
+    }
+    const key = `interrupt|${file}|${ts}`;
+    const known = this.messages.get(key);
+    if (known && known.mtime === mtime) return known.found;
+    const entry = lastMessage(file, 16 * 1024);
+    const found = isInterrupt(entry) && Date.parse(entry.timestamp) > ts;
+    this.messages.set(key, { mtime, found });
+    if (this.messages.size > 200) this.messages.delete(this.messages.keys().next().value);
+    return found;
   }
 
   transcriptChangedSince(d, ts) {
@@ -350,4 +441,4 @@ class Sessions extends EventEmitter {
   }
 }
 
-module.exports = { Sessions, DIR, ALIVE_GRACE, NEEDS_USER_STATES, UNTIL_ANSWERED, clearedBySeeing, oneLine, firstSentence, lastMessageTime };
+module.exports = { Sessions, DIR, ALIVE_GRACE, NEEDS_USER_STATES, UNTIL_ANSWERED, clearedBySeeing, oneLine, firstSentence, lastMessageTime, isInterrupt };

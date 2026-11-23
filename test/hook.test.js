@@ -167,6 +167,19 @@ test('hook: a turn that ends while background work runs is not done (background_
   assert.strictEqual(state().event, 'Stop');
   assert.strictEqual(state().bg, '1');
   assert.strictEqual(state().step, 'npm run dev');
+  // the subagents' ids and Claude's reply are recorded: the app checks whether the agents still work
+  hook('Stop', { last_assistant_message: 'Pushed. All good.', background_tasks: [agent, { ...agent, id: 'a3' }, shell('npm run build')] });
+  assert.strictEqual(state().event, 'Background');
+  assert.strictEqual(state().agents, 'a2 a3');
+  assert.strictEqual(state().reply, 'Pushed. All good.');
+  assert.strictEqual(state().bg, '3');
+  // a background agent's tool calls do not end the wait for the user
+  hook('Stop', { last_assistant_message: 'Add the PDF?', background_tasks: [agent] });
+  hook('PostToolUse', { agent_id: 'a2', tool_name: 'Bash', tool_input: { command: 'ls' } });
+  assert.strictEqual(state().event, 'Stop');
+  hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [agent] });
+  hook('PostToolUse', { agent_id: 'a2', tool_name: 'Bash', tool_input: { command: 'ls' } });
+  assert.strictEqual(state().event, 'PostToolUse');
   // Claude Code's own housekeeping is not work Claude waits for
   for (const type of ['auto-mode scan', 'dream', 'memory save']) {
     hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [{ id: 'h', type, status: 'running', description: 'x' }] });

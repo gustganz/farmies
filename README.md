@@ -50,7 +50,9 @@ Das war's. Farmies richtet sich beim Start selbst ein, startet ab jetzt mit dem 
 Arbeitet Claude noch, läuft das Tier herum, auch wenn Claude nur noch auf ein Script im Hintergrund
 wartet („1 shell“). Läuft das Script länger als 5 Minuten, fragt eine Sanduhr-Blase einmal
 „Schon fertig?“. Ein Server oder Watcher, der einfach weiterläuft (z. B. `npm run dev`), zählt
-nicht als Arbeit: Die Session ist fertig, im Panel steht „Shell läuft“. Wartet etwas auf dich,
+nicht als Arbeit: Die Session ist fertig, im Panel steht „Shell läuft“. Agents im Hintergrund zählen,
+solange sie wirklich arbeiten. Endet Claudes Antwort mit einer Frage an dich, ist die Session fertig,
+egal was im Hintergrund noch läuft. Wartet etwas auf dich,
 hüpft es mit Sprechblasen.
 Ist nichts los, legt es sich schlafen. 💤
 

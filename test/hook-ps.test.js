@@ -101,6 +101,13 @@ test('ps hook: background work: agents are waited for, a dev server is handed ov
   hook('Stop', { background_tasks: [{ id: 'a', status: 'running', description: 'Explore code' }], last_assistant_message: 'Add the PDF?' });
   assert.strictEqual(state().event, 'Stop');
   assert.strictEqual(state().bg, '');
+  // subagent ids and the reply are recorded; an agent's tool call does not end a wait for the user
+  hook('Stop', { background_tasks: [{ id: 'a1', type: 'subagent', status: 'running', description: 'x' }, { id: 'b', status: 'running', command: 'npm test' }], last_assistant_message: 'Pushed.' });
+  assert.strictEqual(state().agents, 'a1');
+  assert.strictEqual(state().reply, 'Pushed.');
+  hook('Stop', { background_tasks: [{ id: 'a1', type: 'subagent', status: 'running', description: 'x' }], last_assistant_message: 'Add it?' });
+  hook('PostToolUse', { agent_id: 'a1', tool_name: 'Bash', tool_input: { command: 'ls' } });
+  assert.strictEqual(state().event, 'Stop');
   // Claude Code's own housekeeping is not work
   hook('Stop', { background_tasks: [{ id: 'h', type: 'auto-mode scan', status: 'running', description: 'x' }], last_assistant_message: 'Pushed.' });
   assert.strictEqual(state().event, 'Stop');
