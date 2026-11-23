@@ -69,7 +69,8 @@ Hintergrund-Aufgaben beim `Stop` (`background_tasks`, laut Claude Code nur laufe
 - Live-Updates eines Artefakts und Claude Codes eigene Aufgaben (Auto-Mode-Scan, Memory) zählen nicht.
 - Subagents: Claude Code führt fertige Agents manchmal dauerhaft als laufend. Der Hook merkt sich ihre
   IDs (`agents`) und Claudes Antwort (`reply`); die App schaut auf ihre Transcripts
-  (`<session>/subagents/…/agent-<id>.jsonl`). Seit 5 Min. unverändert: zählt nicht, bleibt nichts
+  (`<session>/subagents/…/agent-<id>.jsonl`; keine ID gefunden: alle Agent-Transcripts der Session).
+  Seit 5 Min. unverändert: zählt nicht, bleibt nichts
   übrig, ist die Session fertig. Arbeitet einer, gibt es kein „Schon fertig?“.
 - Tool-Aufrufe eines Subagents (Hook-Eingabe mit `agent_id`) beenden ein Warten auf den User nicht.
 

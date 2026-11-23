@@ -154,9 +154,17 @@ test('sessions: background agents count only while their transcripts change', ()
   assert.strictEqual(s.state, 'working');
   assert.strictEqual(s.background, 1);
 
-  // transcripts not found: as before (working, after 5 minutes it asks)
+  // ids not found by name: all agent transcripts of the session count (a1, a2, old: one recent)
   assert.strictEqual(sessions.toSession({ ...d, agents: 'x1 x2' }, now).state, 'working');
-  assert.strictEqual(sessions.toSession({ ...d, agents: 'x1 x2' }, now - 6 * 60 * 1000).state, 'overdue');
+  fs.rmSync(path.join(sub, 'agent-old.jsonl'));
+  assert.strictEqual(sessions.toSession({ ...d, agents: 'x1 x2' }, now).state, 'done');
+  // named agents (ids with dashes)
+  agent('adesigner-app-1f0607cddf6c8a33', 0);
+  assert.strictEqual(sessions.toSession({ ...d, agents: 'adesigner-app-1f0607cddf6c8a33' }, now).state, 'working');
+  // no agent transcripts at all: as before (working, after 5 minutes it asks)
+  const none = { ...d, transcript: path.join(dir, 'other.jsonl') };
+  assert.strictEqual(sessions.toSession(none, now).state, 'working');
+  assert.strictEqual(sessions.toSession(none, now - 6 * 60 * 1000).state, 'overdue');
 });
 
 test('sessions: a turn stopped with Esc (no hook) is no longer working', () => {

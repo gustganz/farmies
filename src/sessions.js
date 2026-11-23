@@ -328,7 +328,8 @@ class Sessions extends EventEmitter {
   /**
    * Whether background subagents (ids) of a session still work: one of their transcripts
    * (<session>/subagents/[...]/agent-<id>.jsonl) changed within AGENT_QUIET before now (the hook's
-   * clock). null: unknown (none of them found).
+   * clock). When none of them is found by its id, all agent transcripts of the session count.
+   * null: unknown (no agent transcripts).
    */
   agentsWorking(d, ids, now) {
     const file = this.transcriptFile(d);
@@ -336,6 +337,7 @@ class Sessions extends EventEmitter {
     const dir = path.join(file.replace(/\.jsonl$/, ''), 'subagents');
     const wanted = new Set(ids.map((id) => `agent-${id}.jsonl`));
     let newest = 0;
+    let any = 0;
     const scan = (where, depth) => {
       let names;
       try {
@@ -347,9 +349,11 @@ class Sessions extends EventEmitter {
         const full = path.join(where, n.name);
         if (n.isDirectory()) {
           if (depth < 2) scan(full, depth + 1);
-        } else if (wanted.has(n.name)) {
+        } else if (n.name.startsWith('agent-') && n.name.endsWith('.jsonl')) {
           try {
-            newest = Math.max(newest, fs.statSync(full).mtimeMs);
+            const t = fs.statSync(full).mtimeMs;
+            any = Math.max(any, t);
+            if (wanted.has(n.name)) newest = Math.max(newest, t);
           } catch {
             // gone
           }
@@ -357,6 +361,7 @@ class Sessions extends EventEmitter {
       }
     };
     scan(dir, 0);
+    if (!newest) newest = any;
     return newest ? newest > now - AGENT_QUIET : null;
   }
 
