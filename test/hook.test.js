@@ -155,12 +155,23 @@ test('hook: a turn that ends while background work runs is not done (background_
   assert.strictEqual(state().event, 'Stop');
   hook('Stop', { last_assistant_message: 'Waiting for the build.', background_tasks: [shell('npm run build')] });
   assert.strictEqual(state().event, 'Background');
-  // a subagent is always waited for, also next to a server and after a question
-  hook('Stop', {
-    last_assistant_message: 'Shall I?',
-    background_tasks: [shell('npm run dev'), { id: 'a2', type: 'subagent', status: 'running', description: 'Review' }],
-  });
+  // a subagent is waited for, also next to a server
+  const agent = { id: 'a2', type: 'subagent', status: 'running', description: 'Design 3 variants' };
+  hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [shell('npm run dev'), agent] });
   assert.strictEqual(state().event, 'Background');
+  // but when Claude asks the user, the session waits for the user: done, only shells are noted
+  hook('Stop', { last_assistant_message: 'Pushed. Shall we add the PDF or drop the sentence?', background_tasks: [agent, agent] });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().bg, '');
+  hook('Stop', { last_assistant_message: 'Shall I?', background_tasks: [agent, shell('npm run dev')] });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().bg, '1');
+  assert.strictEqual(state().step, 'npm run dev');
+  // Claude Code's own housekeeping is not work Claude waits for
+  for (const type of ['auto-mode scan', 'dream', 'memory save']) {
+    hook('Stop', { last_assistant_message: 'Pushed.', background_tasks: [{ id: 'h', type, status: 'running', description: 'x' }] });
+    assert.strictEqual(state().event, 'Stop', type);
+  }
 
   // live updates of an artifact (re-armed on every resume) are a subscription, not work: done
   const live = { id: 'w1', type: 'monitor', status: 'running', description: 'live updates for artifact https://claude.ai/artifact/x (re-armed on session resume)' };

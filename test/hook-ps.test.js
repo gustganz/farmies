@@ -97,6 +97,13 @@ test('ps hook: background work: agents are waited for, a dev server is handed ov
   assert.strictEqual(state().event, 'Background');
   hook('Stop', { background_tasks: [{ id: 'c', status: 'running', command: 'npm test' }], last_assistant_message: 'Shall I go on?' });
   assert.strictEqual(state().event, 'Stop');
+  // Claude asks the user: done also while an agent runs; only shells are noted
+  hook('Stop', { background_tasks: [{ id: 'a', status: 'running', description: 'Explore code' }], last_assistant_message: 'Add the PDF?' });
+  assert.strictEqual(state().event, 'Stop');
+  assert.strictEqual(state().bg, '');
+  // Claude Code's own housekeeping is not work
+  hook('Stop', { background_tasks: [{ id: 'h', type: 'auto-mode scan', status: 'running', description: 'x' }], last_assistant_message: 'Pushed.' });
+  assert.strictEqual(state().event, 'Stop');
   // live updates of an artifact: a subscription, not work
   const live = { id: 'w', type: 'monitor', status: 'running', description: 'live updates for artifact https://claude.ai/artifact/x (re-armed on session resume)' };
   hook('Stop', { background_tasks: [live], last_assistant_message: 'Pushed.' });

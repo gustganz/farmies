@@ -39,11 +39,11 @@ $ServerRe = '(^|[^a-zA-Z])serve|[:\s"](dev|start|preview|watch|up)([\s":]|$)|--w
 $SubscriptionRe = '^live updates for|re-armed on session resume'
 
 # Claude ended its turn but background work is still running (see farmies-hook.sh): handed over to
-# the user when it is only shells and Claude asked something, or only shells that never end by
-# themselves (a dev server).
+# the user when Claude asked something (whatever still runs), or when only shells run that never end
+# by themselves (a dev server).
 function HandedOver($tasks, $lastMessage) {
-  foreach ($t in $tasks) { if (-not ($t.command -is [string])) { return $false } }
   if (([string]$lastMessage -replace '(\\n|[\s*_`)])+$', '').EndsWith('?')) { return $true }
+  foreach ($t in $tasks) { if (-not ($t.command -is [string])) { return $false } }
   foreach ($t in $tasks) { if (('"' + $t.command + '"') -notmatch $ServerRe) { return $false } }
   return $true
 }
@@ -169,13 +169,18 @@ try {
   if ($Name -eq 'Stop') {
     # subscriptions that only wait for events from outside (live updates of an artifact, re-armed on
     # every resume) are not work Claude waits for
-    $tasks = @($data.background_tasks | Where-Object { $_ -and ([string]$_.description -notmatch $SubscriptionRe) })
+    # and neither is Claude Code's own housekeeping (auto mode setup scan, memory consolidation, memory save)
+    $tasks = @($data.background_tasks | Where-Object {
+        $_ -and ([string]$_.description -notmatch $SubscriptionRe) -and ('auto-mode scan', 'dream', 'memory save' -notcontains [string]$_.type)
+      })
     if ($tasks.Count) {
       $state.bg = [string]$tasks.Count
       $first = $tasks[0]
       if (HandedOver $tasks $data.last_assistant_message) {
-        # only shells that keep running, or Claude asked the user: done, the shells are just noted
-        $state.step = Clip $first.command
+        # Claude asked the user, or only shells keep running: done, the running shells are just noted
+        $shells = @($tasks | Where-Object { $_.command -is [string] })
+        $state.bg = if ($shells.Count) { [string]$shells.Count } else { '' }
+        if ($shells.Count) { $state.step = Clip $shells[0].command }
       } else {
         $Name = 'Background'
         $d = [string]$first.command
